@@ -7,7 +7,20 @@ REPO_URL="https://github.com/zeyadelganainy/job-agent-autopilot.git"
 APP_DIR="$HOME/job-agent-autopilot"
 
 sudo apt-get update
-sudo apt-get install -y python3-venv python3-pip git curl debian-keyring debian-archive-keyring apt-transport-https
+sudo apt-get install -y python3-pip git curl debian-keyring debian-archive-keyring apt-transport-https software-properties-common
+
+# The app needs Python >= 3.10. Ubuntu 20.04 ships 3.8 → install 3.11 from deadsnakes.
+PY=python3
+if ! python3 -c 'import sys; raise SystemExit(0 if sys.version_info[:2] >= (3, 10) else 1)'; then
+  echo "System Python is < 3.10 — installing Python 3.11 (deadsnakes)…"
+  sudo add-apt-repository -y ppa:deadsnakes/ppa
+  sudo apt-get update
+  sudo apt-get install -y python3.11 python3.11-venv python3.11-dev
+  PY=python3.11
+else
+  sudo apt-get install -y python3-venv
+fi
+echo "Using $($PY --version)"
 
 # Caddy (automatic HTTPS reverse proxy) from the official repo
 if ! command -v caddy >/dev/null 2>&1; then
@@ -21,7 +34,7 @@ fi
 # Code + venv
 [ -d "$APP_DIR/.git" ] || git clone "$REPO_URL" "$APP_DIR"
 cd "$APP_DIR"
-python3 -m venv .venv
+$PY -m venv .venv
 .venv/bin/pip install --upgrade pip
 .venv/bin/pip install -r requirements.txt
 
