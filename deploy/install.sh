@@ -1,26 +1,13 @@
 #!/usr/bin/env bash
 # Provision job-agent-autopilot on a fresh Ubuntu VM (e.g. Oracle Cloud Always Free).
-# Run on the VM:  bash deploy/install.sh   (after cloning the repo), or curl it down first.
+# Run on the VM:  git clone … && cd job-agent-autopilot && bash deploy/install.sh
 set -euo pipefail
 
 REPO_URL="https://github.com/zeyadelganainy/job-agent-autopilot.git"
 APP_DIR="$HOME/job-agent-autopilot"
 
 sudo apt-get update
-sudo apt-get install -y python3-pip git curl debian-keyring debian-archive-keyring apt-transport-https software-properties-common
-
-# The app needs Python >= 3.10. Ubuntu 20.04 ships 3.8 → install 3.11 from deadsnakes.
-PY=python3
-if ! python3 -c 'import sys; raise SystemExit(0 if sys.version_info[:2] >= (3, 10) else 1)'; then
-  echo "System Python is < 3.10 — installing Python 3.11 (deadsnakes)…"
-  sudo add-apt-repository -y ppa:deadsnakes/ppa
-  sudo apt-get update
-  sudo apt-get install -y python3.11 python3.11-venv python3.11-dev
-  PY=python3.11
-else
-  sudo apt-get install -y python3-venv
-fi
-echo "Using $($PY --version)"
+sudo apt-get install -y git curl debian-keyring debian-archive-keyring apt-transport-https
 
 # Caddy (automatic HTTPS reverse proxy) from the official repo
 if ! command -v caddy >/dev/null 2>&1; then
@@ -31,23 +18,32 @@ if ! command -v caddy >/dev/null 2>&1; then
   sudo apt-get update && sudo apt-get install -y caddy
 fi
 
-# Code + venv
+# uv installs a standalone Python 3.11 — no system Python needed (older distros ship 3.8,
+# which the app's syntax won't run on, and deadsnakes can be unreliable).
+if ! command -v uv >/dev/null 2>&1; then
+  curl -LsSf https://astral.sh/uv/install.sh | sh
+fi
+export PATH="$HOME/.local/bin:$HOME/.cargo/bin:$PATH"
+
+# Code + venv (managed Python 3.11) + deps
 [ -d "$APP_DIR/.git" ] || git clone "$REPO_URL" "$APP_DIR"
 cd "$APP_DIR"
-$PY -m venv .venv
-.venv/bin/pip install --upgrade pip
-.venv/bin/pip install -r requirements.txt
+uv venv --python 3.11 .venv
+uv pip install --python .venv/bin/python -r requirements.txt
 
 cat <<'NEXT'
 
 Installed. Finish setup:
   1) From your laptop, push secrets + profile (kept out of the public repo):
         ./deploy/sync-secrets.sh ubuntu@<vm-ip>
-     Then on the VM, fill in .env (WEB_PASSWORD, ANTHROPIC/GEMINI keys, SMTP_*, APP_URL).
+     Then on the VM, ensure .env has WEB_PASSWORD, ANTHROPIC/GEMINI keys, SMTP_*, APP_URL.
   2) Point a free DuckDNS subdomain at this VM's public IP, edit deploy/Caddyfile, then:
         sudo cp deploy/Caddyfile /etc/caddy/Caddyfile && sudo systemctl reload caddy
   3) Install + start the service:
         sudo cp deploy/jobagent.service /etc/systemd/system/
         sudo systemctl daemon-reload && sudo systemctl enable --now jobagent
-  4) Open ingress for ports 80 + 443 in the Oracle VCN security list.
+  4) Open ingress for ports 80 + 443 in the Oracle VCN security list, and on the VM:
+        sudo iptables -I INPUT 5 -m state --state NEW -p tcp --dport 80 -j ACCEPT
+        sudo iptables -I INPUT 5 -m state --state NEW -p tcp --dport 443 -j ACCEPT
+        sudo netfilter-persistent save
 NEXT
