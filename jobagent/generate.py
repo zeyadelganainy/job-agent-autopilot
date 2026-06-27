@@ -28,8 +28,13 @@ COVER_SYSTEM = (
     "You write cover letters that sound like the candidate, not like an AI. "
     "Match the tone, rhythm, and vocabulary of the writing samples provided. "
     "No clichés ('I am thrilled', 'fast-paced environment'), no invented facts — "
-    "use only what's in the master résumé below. 3 short paragraphs, ~250 words. "
-    "Return only the letter."
+    "use only what's in the master résumé below. Write 4 well-developed paragraphs "
+    "(~350–420 words): (1) an opening that ties the candidate to THIS company's mission "
+    "and values as expressed in the posting; (2-3) two body paragraphs of concrete, "
+    "relevant evidence from the master résumé, mapped to what the role needs; (4) a brief "
+    "close. Tone: confident and self-assured, but never boastful or arrogant — let the "
+    "specifics carry it. End with 'Sincerely,' on its own line, then the candidate's name "
+    "on the next line. Return only the letter."
 )
 
 COVER_TEMPLATE = """Writing samples that show the candidate's voice:
@@ -42,7 +47,8 @@ Job: {title} at {company}
 Job description:
 {description}
 
-Write a tailored cover letter for this job, in the candidate's voice."""
+Write a tailored cover letter for this job, in the candidate's voice. Reflect the
+company's stated mission/values from the posting, and show genuine alignment with them."""
 
 # --------------------------------------------------------------------- resume
 RESUME_SYSTEM = (
@@ -51,7 +57,8 @@ RESUME_SYSTEM = (
     "file: never fabricate; select, reorder, and lightly rephrase real content; "
     "reproduce every number, date, and name exactly; prefer quantified bullets; if the "
     "job needs something not in the master, omit it rather than invent it. "
-    "It MUST fit on ONE page — be selective, not exhaustive. "
+    "Fill ONE FULL page — use the whole page without spilling onto a second; don't leave "
+    "noticeable empty space at the bottom. "
     "Output ONLY a JSON object — no prose, no code fences."
 )
 
@@ -71,9 +78,12 @@ Produce a tailored ONE-PAGE résumé as JSON with EXACTLY this shape:
   "education": [{{"school": "", "degree": "", "location": "", "dates": "", "bullets": [""]}}]
 }}
 
-ONE PAGE IS A HARD LIMIT. To stay within it:
-- At most 3-4 bullets per experience entry; keep the most relevant, quantified ones.
-- At most 2-3 projects, the most relevant to THIS job; <= 3 bullets each.
+Fill ONE FULL PAGE — use the whole page, but NEVER spill onto a second. If the page
+would look sparse, add another relevant quantified bullet or an additional relevant
+project rather than leaving white space; if it would overflow, trim the least relevant.
+- 4-5 bullets for the most relevant experience entries (fewer for older/less relevant ones).
+- 3-4 projects most relevant to THIS job; 2-4 bullets each.
+- List "projects" from most recent to oldest (by their dates).
 - One concise line per skill category; drop categories irrelevant to the role.
 - Keep the summary to 2-3 lines.
 
@@ -239,6 +249,20 @@ def _strip_fabricated_links(data: dict, master: str) -> None:
             pr["link"] = ""
 
 
+def _sort_projects_recent_first(data: dict) -> None:
+    """Order projects most-recent-first by the latest year in their dates string.
+    Deterministic backstop to the prompt; projects with no parseable year sort last."""
+    projs = data.get("projects")
+    if not isinstance(projs, list):
+        return
+
+    def key(pr):
+        years = re.findall(r"(?:19|20)\d{2}", str(pr.get("dates") or ""))
+        return max(int(y) for y in years) if years else -1
+
+    data["projects"] = sorted(projs, key=key, reverse=True)
+
+
 def _render_resume_docx(data: dict, identity: dict, template: Path, out_path: Path):
     doc = Document(str(template)) if template.exists() else Document()
     _clear_body(doc)
@@ -328,12 +352,28 @@ def _render_cover_docx(text: str, identity: dict, template: Path, out_path: Path
     _hr(_render_contact(doc, identity) or name_p)
     _par(doc)  # blank spacer line
 
+    body_size = 11.5   # larger than the résumé's 10pt body
+    signoffs = ("sincerely", "best regards", "kind regards", "warm regards", "regards",
+                "best,", "yours truly", "yours sincerely", "respectfully")
+
     for block in re.split(r"\n\s*\n", (text or "").strip()):
-        block = " ".join(block.split())   # collapse internal line breaks
-        if block:
+        collapsed = " ".join(block.split())   # collapse internal line breaks
+        if not collapsed:
+            continue
+        low = collapsed.lower()
+        if len(collapsed) < 60 and any(low.startswith(s) for s in signoffs):
+            # "Sincerely, Name" (or just "Sincerely,") → blank line, closing, blank line, name
+            closing, sep, rest = collapsed.partition(",")
+            closing = closing + ("," if sep else "")
+            _par(doc)                                  # blank line BEFORE the closing
+            _run(_par(doc), closing, size=body_size)
+            _par(doc)                                  # blank line AFTER the closing
+            if rest.strip():
+                _run(_par(doc), rest.strip(), size=body_size)
+        else:
             p = _par(doc)
             p.paragraph_format.space_after = Pt(6)
-            _run(p, block, size=10.5)
+            _run(p, collapsed, size=body_size)
     doc.save(str(out_path))
 
 
@@ -420,6 +460,7 @@ def generate(job_row, profile: dict, samples: str, master: str, models: dict,
         return out_paths + [str(md)]
 
     _strip_fabricated_links(data, master)   # never let invented URLs onto the résumé
+    _sort_projects_recent_first(data)       # projects in date order (most recent first)
     try:
         resume_path = folder / f"{base}_resume.docx"
         _render_resume_docx(data, identity, template, resume_path)
