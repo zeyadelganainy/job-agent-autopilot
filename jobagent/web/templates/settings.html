@@ -51,6 +51,15 @@
     <p class="muted" style="font-size:12.5px;margin:4px 0 0">The agent auto-prepares documents for top matches. It never applies — you always submit yourself.</p>
   </div></div>
 
+  <div class="panel"><div class="panel-h"><h2>Application tracker</h2></div><div class="panel-b">
+    <div class="row3">
+      <div class="field"><label>Ghost after (weeks)</label><input name="ghost_after_weeks" value="{{ s.ghost_after_weeks }}"></div>
+      <div class="field"><label>&nbsp;</label>
+        <label class="check"><input type="checkbox" name="auto_ghost" {{ 'checked' if s.auto_ghost }}> Auto-mark stale "Applied" as "Ghosted"</label></div>
+    </div>
+    <p class="muted" style="font-size:12.5px;margin:4px 0 0">An application still at "Applied" with no response after this many weeks is automatically moved to "Ghosted".</p>
+  </div></div>
+
   <div class="panel"><div class="panel-h"><h2>Email digest</h2></div><div class="panel-b">
     <p style="margin:0">Status:
       {% if email_ok %}<span class="chip chip-offer">configured</span>{% else %}<span class="chip chip-rejected">not configured</span>{% endif %}

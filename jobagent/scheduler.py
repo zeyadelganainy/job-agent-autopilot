@@ -6,13 +6,24 @@ you the digest. Active while the web app process is running (it stays up on the 
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
 
+from . import tracker
 from .config import load_config
 from .notify import send_email
 from .pipeline import agent_run, format_email, format_digest, pending, scan
+from .store import Store
 
 
 def _daily_run():
     cfg = load_config()
+    tcfg = cfg.get("tracker") or {}
+    if tcfg.get("auto_ghost"):
+        st = Store(cfg["paths"]["db"])
+        try:
+            n = tracker.auto_ghost(st, tcfg.get("ghost_after_weeks", 4))
+            if n:
+                print(f"[scheduler] auto-ghosted {n} stale application(s)")
+        finally:
+            st.close()
     agent_on = (cfg.get("agent") or {}).get("enabled", True)
     print("[scheduler] running daily agent…" if agent_on else "[scheduler] running daily scan…")
     try:

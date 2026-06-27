@@ -365,11 +365,15 @@ def insights_page(request: Request, _=Depends(require_auth)):
 def tracker_page(request: Request, stage: str = "", company: str = "",
                  sort: str = "applied", dir: str = "desc", page: int = 1,
                  summary: str = None, _=Depends(require_auth)):
+    tcfg = load_config().get("tracker") or {}
     s = _store()
     try:
+        if tcfg.get("auto_ghost"):
+            tracker.auto_ghost(s, tcfg.get("ghost_after_weeks", 4))
         allrows = [dict(r) for r in s.list_applications()]
     finally:
         s.close()
+    active = sum(1 for r in allrows if tracker.is_active(r["stage"]))
     stages = sorted({(r["stage"] or "").strip() for r in allrows if (r["stage"] or "").strip()})
     rows = allrows
     if stage:
@@ -387,6 +391,7 @@ def tracker_page(request: Request, stage: str = "", company: str = "",
     page_rows, pg = webutil.paginate(rows, page, 25)
     return render(request, "tracker.html", {
         "apps": page_rows, "pg": pg, "stages": stages, "summary": summary,
+        "total": len(allrows), "active": active,
         "f": {"stage": stage, "company": company, "sort": sort, "dir": dir}})
 
 
@@ -470,6 +475,7 @@ def settings_save(
     lever: str = Form(""), ashby: str = Form(""), boards_enabled: str = Form(None),
     threshold: str = Form(""), digest_size: str = Form(""), max_to_score: str = Form(""),
     agent_enabled: str = Form(None), min_score: str = Form(""), daily_cap: str = Form(""),
+    auto_ghost: str = Form(None), ghost_after_weeks: str = Form(""),
     claude: str = Form(""), gemini: str = Form(""), schedule_enabled: str = Form(None),
     schedule_time: str = Form(""), schedule_timezone: str = Form(""), _=Depends(require_auth),
 ):
@@ -483,6 +489,7 @@ def settings_save(
         "max_to_score": _int(max_to_score, 25),
         "agent_enabled": bool(agent_enabled), "min_score": _int(min_score, 80),
         "daily_cap": _int(daily_cap, 5),
+        "auto_ghost": bool(auto_ghost), "ghost_after_weeks": _int(ghost_after_weeks, 4),
         "claude": claude.strip(), "gemini": gemini.strip(),
         "schedule_enabled": bool(schedule_enabled), "schedule_time": schedule_time.strip() or "08:00",
         "schedule_timezone": schedule_timezone.strip(),

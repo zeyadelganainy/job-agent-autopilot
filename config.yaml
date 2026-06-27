@@ -62,6 +62,11 @@ agent:
   min_score: 80         # auto-generate résumé + cover letter only at/above this match score
   daily_cap: 5          # max documents auto-generated per run (LLM-cost guard)
 
+# ---- Application tracker automation ----
+tracker:
+  auto_ghost: true          # auto-mark still-"Applied" apps as "Ghosted"…
+  ghost_after_weeks: 4      # …once they're this many weeks old with no response
+
 # ---- Models (config-driven so you can swap freely) ----
 models:
   claude: claude-opus-4-8   # primary (Anthropic, paid BYOK); swap to claude-sonnet-4-6 / claude-haiku-4-5 to cut cost

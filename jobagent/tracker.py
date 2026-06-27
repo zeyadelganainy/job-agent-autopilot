@@ -1,7 +1,14 @@
-"""Import a Google Sheets application tracker (exported as CSV) into the view-only
-`applications` table. Auto-maps common column names; re-import upserts (no dupes)."""
+"""Import a Google Sheets application tracker (exported as CSV) into the editable
+`applications` table. Auto-maps common column names; re-import upserts (no dupes).
+Also: 'active' classification + auto-ghosting of stale applications."""
 import csv
 import io
+from datetime import datetime, timedelta, timezone
+
+from . import webutil
+
+# Stages that mean an application is no longer in play.
+INACTIVE_STAGES = {"rejected", "ghosted", "declined", "withdrawn"}
 
 # our field -> accepted header names (lowercased; substring match as a fallback)
 FIELD_ALIASES = {
@@ -64,3 +71,28 @@ def import_csv(content: str, store) -> dict:
         else:
             updated += 1
     return {"inserted": inserted, "updated": updated, "total": len(rows), "mapping": mapping}
+
+
+def is_active(stage) -> bool:
+    """An application still in play (not rejected/ghosted/declined/withdrawn)."""
+    return (stage or "").strip().lower() not in INACTIVE_STAGES
+
+
+def auto_ghost(store, weeks: int) -> int:
+    """Mark still-'Applied' applications older than `weeks` weeks as 'Ghosted'.
+
+    Only touches rows whose stage is exactly 'Applied' (anything further along — interview,
+    offer, etc. — is left alone). Returns how many were ghosted.
+    """
+    if not weeks or weeks <= 0:
+        return 0
+    cutoff = datetime.now(timezone.utc) - timedelta(weeks=weeks)
+    ghosted = 0
+    for r in store.list_applications():
+        if (r["stage"] or "").strip().lower() != "applied":
+            continue
+        dt = webutil.to_dt(r["applied_date"])
+        if dt and dt < cutoff:
+            store.set_application_stage(r["id"], "Ghosted")
+            ghosted += 1
+    return ghosted

@@ -17,6 +17,7 @@
   {% if f.q or f.since %}<a class="btn btn-ghost" href="/docs">Clear</a>{% endif %}
 </form>
 
+{% if jobs %}<div class="pagerbar">{{ ui.pager(pg, f) }}</div>{% endif %}
 <div class="table-wrap">
   {% if jobs %}
     {% for j in jobs %}

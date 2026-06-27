@@ -15,7 +15,12 @@
 {% block content %}
 {% if summary %}<div class="banner">{{ summary }}.</div>{% endif %}
 
-<div class="toolbar">
+<div class="stats">
+  <div class="stat accent"><div class="n">{{ active }}</div><div class="l">Active (not ghosted/rejected)</div></div>
+  <div class="stat"><div class="n">{{ total }}</div><div class="l">Total applications</div></div>
+</div>
+
+<div class="toolbar" style="margin-top:18px">
   <form class="filters" method="get" action="/tracker">
     <input type="text" name="company" value="{{ f.company }}" placeholder="Company">
     <label class="inl">Stage
@@ -42,6 +47,7 @@
   </details>
 </div>
 
+<div class="pagerbar">{{ ui.pager(pg, f) }}</div>
 <div class="table-wrap">
   <table>
     <thead><tr>

@@ -252,6 +252,10 @@ class Store:
         self.conn.execute("DELETE FROM applications WHERE id=?", (app_id,))
         self.conn.commit()
 
+    def set_application_stage(self, app_id, stage: str):
+        self.conn.execute("UPDATE applications SET stage=? WHERE id=?", (stage, app_id))
+        self.conn.commit()
+
     def add_application(self, fields: dict):
         """Insert a manually-added application (dedupe_key keeps re-imports tidy)."""
         key = (fields.get("url") or "").strip().lower() or \
@@ -260,5 +264,8 @@ class Store:
             """INSERT OR IGNORE INTO applications
                    (dedupe_key, role, company, applied_date, stage, location, notes, source)
                VALUES (:dedupe_key,:role,:company,:applied_date,:stage,:location,:notes,'manual')""",
-            {"dedupe_key": key or None, **fields})
+            {"dedupe_key": key or None,
+             "role": fields.get("role", ""), "company": fields.get("company", ""),
+             "applied_date": fields.get("applied_date", ""), "stage": fields.get("stage", ""),
+             "location": fields.get("location", ""), "notes": fields.get("notes", "")})
         self.conn.commit()

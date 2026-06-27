@@ -32,6 +32,7 @@ def read() -> dict:
     m = d.get("models", {}) or {}
     sch = d.get("schedule", {}) or {}
     ag = d.get("agent", {}) or {}
+    tr = d.get("tracker", {}) or {}
     return {
         "keywords": list(s.get("keywords") or []),
         "locations": list(s.get("locations") or []),
@@ -48,6 +49,8 @@ def read() -> dict:
         "agent_enabled": bool(ag.get("enabled", True)),
         "min_score": ag.get("min_score", 80),
         "daily_cap": ag.get("daily_cap", 5),
+        "auto_ghost": bool(tr.get("auto_ghost", True)),
+        "ghost_after_weeks": tr.get("ghost_after_weeks", 4),
         "claude": m.get("claude"),
         "gemini": m.get("gemini"),
         "schedule_enabled": bool(sch.get("enabled")),
@@ -81,6 +84,10 @@ def write(form: dict):
     d["agent"]["enabled"] = form["agent_enabled"]
     d["agent"]["min_score"] = form["min_score"]
     d["agent"]["daily_cap"] = form["daily_cap"]
+
+    d.setdefault("tracker", {})
+    d["tracker"]["auto_ghost"] = form["auto_ghost"]
+    d["tracker"]["ghost_after_weeks"] = form["ghost_after_weeks"]
 
     d.setdefault("models", {})
     d["models"]["claude"] = form["claude"]

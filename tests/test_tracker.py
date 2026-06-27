@@ -31,3 +31,26 @@ def test_import_csv_inserts_then_upserts(tmp_path):
     stages = {a["company"]: a["stage"] for a in s.list_applications()}
     assert stages["D2L"] == "Offer"
     s.close()
+
+
+def test_is_active():
+    assert tracker.is_active("Applied") and tracker.is_active("Interview")
+    assert not tracker.is_active("Rejected") and not tracker.is_active("ghosted")
+
+
+def test_auto_ghost(tmp_path):
+    from datetime import datetime, timedelta
+    s = Store(str(tmp_path / "t.db"))
+    old = (datetime.now() - timedelta(weeks=6)).strftime("%m/%d/%Y")
+    recent = (datetime.now() - timedelta(weeks=1)).strftime("%m/%d/%Y")
+    s.add_application({"role": "A", "company": "Old", "applied_date": old, "stage": "Applied"})
+    s.add_application({"role": "B", "company": "Fresh", "applied_date": recent, "stage": "Applied"})
+    s.add_application({"role": "C", "company": "Interviewing", "applied_date": old, "stage": "Interview"})
+
+    n = tracker.auto_ghost(s, 4)
+    assert n == 1                                  # only the old "Applied" one
+    stages = {a["company"]: a["stage"] for a in s.list_applications()}
+    assert stages["Old"] == "Ghosted"
+    assert stages["Fresh"] == "Applied"            # too recent
+    assert stages["Interviewing"] == "Interview"   # not at "Applied"
+    s.close()

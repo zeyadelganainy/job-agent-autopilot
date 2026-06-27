@@ -29,6 +29,7 @@
   {% if f.company or f.location or f.min_score or f.max_age %}<a class="btn btn-ghost" href="/jobs">Clear</a>{% endif %}
 </form>
 
+{% if jobs %}<div class="pagerbar">{{ ui.pager(pg, f) }}</div>{% endif %}
 <div class="table-wrap">
   {% if jobs %}
   <form method="post" action="/pick">

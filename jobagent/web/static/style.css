@@ -186,6 +186,8 @@ textarea { resize: vertical; min-height: 200px; font-family: var(--mono); font-s
   padding: 14px 16px; border-top: 1px solid var(--line-2); flex-wrap: wrap; }
 .pager { display: flex; align-items: center; gap: 10px; margin-left: auto; }
 .pager-info, .pager-page { font-size: 13px; color: var(--text-dim); }
+.pagerbar { display: flex; justify-content: flex-end; margin: 0 0 10px; }
+.pagerbar .pager { margin-left: 0; }
 .sorth { color: var(--text-dim); text-decoration: none; }
 .sorth:hover { color: var(--brand); text-decoration: none; }
 .sorth.on { color: var(--text); }
