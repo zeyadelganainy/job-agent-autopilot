@@ -41,16 +41,33 @@
     </div>
   </div></div>
 
+  <div class="panel"><div class="panel-h"><h2>Autopilot agent</h2></div><div class="panel-b">
+    <div class="row3">
+      <div class="field"><label>Auto-generate at/above match %</label><input name="min_score" value="{{ s.min_score }}"></div>
+      <div class="field"><label>Max documents per run</label><input name="daily_cap" value="{{ s.daily_cap }}"></div>
+      <div class="field"><label>&nbsp;</label>
+        <label class="check"><input type="checkbox" name="agent_enabled" {{ 'checked' if s.agent_enabled }}> Run the agent on schedule</label></div>
+    </div>
+    <p class="muted" style="font-size:12.5px;margin:4px 0 0">The agent auto-prepares documents for top matches. It never applies — you always submit yourself.</p>
+  </div></div>
+
+  <div class="panel"><div class="panel-h"><h2>Email digest</h2></div><div class="panel-b">
+    <p style="margin:0">Status:
+      {% if email_ok %}<span class="chip chip-offer">configured</span>{% else %}<span class="chip chip-rejected">not configured</span>{% endif %}
+    </p>
+    <p class="muted" style="font-size:12.5px;margin:8px 0 0">Email credentials live in <span class="mono">.env</span> (SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS, EMAIL_FROM, EMAIL_TO) — not editable here for safety.</p>
+  </div></div>
+
   <div class="panel"><div class="panel-h"><h2>Models &amp; schedule</h2></div><div class="panel-b">
     <div class="row2">
       <div class="field"><label>Claude model (primary)</label><input name="claude" value="{{ s.claude }}"></div>
       <div class="field"><label>Gemini model (fallback)</label><input name="gemini" value="{{ s.gemini }}"></div>
     </div>
     <div class="row3">
-      <div class="field"><label>Daily scan time (24h)</label><input name="schedule_time" value="{{ s.schedule_time }}"></div>
+      <div class="field"><label>Daily run time (24h)</label><input name="schedule_time" value="{{ s.schedule_time }}"></div>
       <div class="field"><label>Timezone</label><input name="schedule_timezone" value="{{ s.schedule_timezone }}"></div>
       <div class="field"><label>&nbsp;</label>
-        <label class="check"><input type="checkbox" name="schedule_enabled" {{ 'checked' if s.schedule_enabled }}> Run daily scan</label></div>
+        <label class="check"><input type="checkbox" name="schedule_enabled" {{ 'checked' if s.schedule_enabled }}> Enable daily schedule</label></div>
     </div>
   </div></div>
 

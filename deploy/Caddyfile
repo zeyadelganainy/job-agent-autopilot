@@ -1,0 +1,5 @@
+# Replace the domain with your free DuckDNS subdomain (https://www.duckdns.org).
+# Caddy fetches + renews a Let's Encrypt cert automatically, so the public console is HTTPS.
+your-subdomain.duckdns.org {
+    reverse_proxy 127.0.0.1:8000
+}

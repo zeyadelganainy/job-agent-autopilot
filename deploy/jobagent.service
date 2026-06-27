@@ -1,0 +1,16 @@
+[Unit]
+Description=job-agent autopilot (web console + daily agent scheduler)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=ubuntu
+WorkingDirectory=/home/ubuntu/job-agent-autopilot
+# Secrets/config come from .env in WorkingDirectory (loaded by python-dotenv).
+ExecStart=/home/ubuntu/job-agent-autopilot/.venv/bin/python -m uvicorn jobagent.web.app:app --host 127.0.0.1 --port 8000
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

@@ -1,9 +1,11 @@
-"""SQLite-backed state. Tracks each job through the loop so /pick maps back correctly.
+"""SQLite-backed state for the autopilot agent.
 
-status flow: new -> scored -> sent -> picked -> generated  (or -> skipped)
+status flow: new -> scored -> sent -> (auto) generated -> applied
+             a selected job can branch to 'needs_attention' (LLM quota/API error or a
+             manual external portal) until you Retry or Apply it; or 'skipped' if dismissed.
 
-The `applications` table is separate, view-only tracker history imported from a CSV
-(Google Sheets export) — it is NOT part of the agent's job pipeline.
+`agent_runs` records each autonomous run for the monitoring console. The `applications`
+table is the imported/editable tracker history, separate from the `jobs` pipeline.
 """
 import json
 import sqlite3
@@ -45,6 +47,19 @@ CREATE TABLE IF NOT EXISTS applications (
     source       TEXT DEFAULT 'import',
     created_at   TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
+
+CREATE TABLE IF NOT EXISTS agent_runs (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    started_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    finished_at     TIMESTAMP,
+    scanned         INTEGER DEFAULT 0,
+    scored          INTEGER DEFAULT 0,
+    matched         INTEGER DEFAULT 0,
+    generated       INTEGER DEFAULT 0,
+    needs_attention INTEGER DEFAULT 0,
+    error           TEXT,
+    status          TEXT DEFAULT 'running'
+);
 """
 
 
@@ -56,7 +71,16 @@ class Store:
         self.conn.row_factory = sqlite3.Row
         self.conn.execute("PRAGMA journal_mode=WAL")
         self.conn.executescript(SCHEMA)
+        self._migrate()
         self.conn.commit()
+
+    def _migrate(self):
+        """Add V2 columns to an existing jobs table (no-op on a fresh DB)."""
+        cols = {r["name"] for r in self.conn.execute("PRAGMA table_info(jobs)")}
+        if "applied_at" not in cols:
+            self.conn.execute("ALTER TABLE jobs ADD COLUMN applied_at TIMESTAMP")
+        if "flag_reason" not in cols:
+            self.conn.execute("ALTER TABLE jobs ADD COLUMN flag_reason TEXT")
 
     def close(self):
         self.conn.close()
@@ -115,7 +139,75 @@ class Store:
         )
         self.conn.commit()
 
-    # ---- applications (view-only tracker) ----
+    # ---- autopilot: apply / triage / runs ----
+    def ready_to_apply(self) -> list[sqlite3.Row]:
+        """Agent-prepared jobs awaiting your action (have docs, not yet applied)."""
+        return self.conn.execute(
+            "SELECT * FROM jobs WHERE status='generated' AND applied_at IS NULL "
+            "ORDER BY score DESC, created_at DESC"
+        ).fetchall()
+
+    def mark_applied(self, job_id: str):
+        self.conn.execute(
+            "UPDATE jobs SET applied_at=CURRENT_TIMESTAMP, status='applied' WHERE job_id=?",
+            (job_id,))
+        self.conn.commit()
+
+    def unmark_applied(self, job_id: str):
+        self.conn.execute(
+            "UPDATE jobs SET applied_at=NULL, status='generated' WHERE job_id=?", (job_id,))
+        self.conn.commit()
+
+    def flag_job(self, job_id: str, reason: str):
+        """Move a job into the triage queue with a human-readable reason."""
+        self.conn.execute(
+            "UPDATE jobs SET status='needs_attention', flag_reason=? WHERE job_id=?",
+            (reason, job_id))
+        self.conn.commit()
+
+    def needs_attention(self) -> list[sqlite3.Row]:
+        return self.conn.execute(
+            "SELECT * FROM jobs WHERE status='needs_attention' "
+            "ORDER BY score DESC, created_at ASC"
+        ).fetchall()
+
+    def retry_job(self, job_id: str):
+        """Clear a triage flag so the job is eligible for the next run / manual generate."""
+        self.conn.execute(
+            "UPDATE jobs SET status='sent', flag_reason=NULL WHERE job_id=?", (job_id,))
+        self.conn.commit()
+
+    def start_run(self) -> int:
+        cur = self.conn.execute("INSERT INTO agent_runs (status) VALUES ('running')")
+        self.conn.commit()
+        return cur.lastrowid
+
+    def finish_run(self, run_id: int, *, status: str, scanned=0, scored=0, matched=0,
+                   generated=0, needs_attention=0, error=None):
+        self.conn.execute(
+            """UPDATE agent_runs SET finished_at=CURRENT_TIMESTAMP, status=?, scanned=?,
+                   scored=?, matched=?, generated=?, needs_attention=?, error=? WHERE id=?""",
+            (status, scanned, scored, matched, generated, needs_attention, error, run_id))
+        self.conn.commit()
+
+    def list_runs(self, limit: int = 10) -> list[sqlite3.Row]:
+        return self.conn.execute(
+            "SELECT * FROM agent_runs ORDER BY id DESC LIMIT ?", (limit,)).fetchall()
+
+    def today_stats(self) -> dict:
+        r = self.conn.execute(
+            "SELECT COALESCE(SUM(scanned),0) s, COALESCE(SUM(matched),0) m, "
+            "COALESCE(SUM(generated),0) g FROM agent_runs WHERE date(started_at)=date('now')"
+        ).fetchone()
+        applied = self.conn.execute(
+            "SELECT COUNT(*) c FROM jobs WHERE applied_at IS NOT NULL "
+            "AND date(applied_at)=date('now')").fetchone()["c"]
+        attention = self.conn.execute(
+            "SELECT COUNT(*) c FROM jobs WHERE status='needs_attention'").fetchone()["c"]
+        return {"scanned": r["s"], "matched": r["m"], "generated": r["g"],
+                "applied": applied, "attention": attention}
+
+    # ---- applications (editable tracker) ----
     def upsert_application(self, app: dict) -> str:
         """Insert or update by dedupe_key. Returns 'inserted' or 'updated'."""
         cur = self.conn.execute(

@@ -1,80 +1,69 @@
-# job-agent — project memory
+# job-agent-autopilot — project memory
 
-A free, self-hosted, BYOK job-application assistant. Single-user, runs on the
-owner's machine. See README.md for setup; this file is the behavioral contract.
+A free, self-hosted, BYOK **autonomous job-application prep agent** (V2). Forked from
+job-agent v1.2. Single-user; designed to run always-on on a small cloud VM. See README.md
+for setup/deploy; this file is the behavioral contract.
 
 ## The loop (do not break this shape)
-scan → score → Telegram digest → user replies `/pick <ids>` → generate tailored
-resume + cover letter → user applies MANUALLY.
+scan → score → **agent auto-selects the best matches and auto-generates** a tailored resume +
+cover letter → **email digest** + web monitoring console → **user reviews and APPLIES manually**.
 
-v1.1 adds a **web UI** (FastAPI) and **scheduled daily scans** as *additional* surfaces over
-the same pipeline — same loop, same human-in-the-loop, no auto-apply. The web UI can also
-generate docs for an **ad-hoc JD** (pasted text or ATS URL) and shows a **view-only** imported
-application tracker.
+The agent is autonomous up to *preparing* documents. The human always performs the final
+application. A scheduled daily run does the whole cycle; "Run agent now" triggers it on demand.
 
 ## Hard rules
 - **Never add auto-apply / auto-submit.** The human stays in the loop for the final
-  application. This is a deliberate safety + account-ban decision, not an oversight.
-- **ATS feeds (Greenhouse/Lever/Ashby) are the primary source** — public JSON, no
-  scraping, no ToS issues. Lean on these.
-- **Job boards via JobSpy are ToS-grey and can get the user IP-blocked.** They're
-  off by default in config.yaml. Do not enable, expand, or add new scrapers without
-  explicitly flagging the tradeoff to the user first.
-- **BYOK only.** Keys live in `.env` (gitignored). Never hardcode a key anywhere.
-- **Model names come from `config.yaml` `models:`.** Never hardcode a model string in
-  code — free-tier model names get deprecated often.
-- All LLM calls go through `jobagent/llm.py:chat()`. Don't call the Anthropic/Gemini
-  SDKs directly from other modules.
+  application. The "Apply" button only *records* that the user applied (and opens the posting);
+  it never submits. This is a deliberate safety + account-ban decision.
+- **ATS feeds (Greenhouse/Lever/Ashby) are the primary source** — public JSON, no scraping.
+- **Job boards via JobSpy are ToS-grey and can get the user IP-blocked.** Don't enable/expand
+  scrapers without flagging the tradeoff first.
+- **BYOK only.** Keys + SMTP creds live in `.env` (gitignored). Never hardcode a secret.
+  The repo is **public** — never commit `.env` or `profile/` (personal data); they reach the
+  VM via `deploy/sync-secrets.sh` (scp), not git.
+- **Model names come from `config.yaml` `models:`.** Never hardcode a model string.
+- All LLM calls go through `jobagent/llm.py:chat()`. Don't call provider SDKs directly elsewhere.
+- **Autonomy needs a release valve:** anything the agent can't finish (LLM quota/API error, or a
+  manual external portal) is flagged into the **triage queue** (`status='needs_attention'` +
+  `flag_reason`), never silently dropped.
 
 ## Architecture
-- `run_scan.py` — CLI entry: ingest → score → push digest to Telegram (cron-friendly).
-- `bot.py` — long-running Telegram bot: `/scan` `/list` `/pick` `/skip`.
-- `jobagent/ingest/` — `ats.py` (Greenhouse/Lever/Ashby), `boards.py` (JobSpy),
-  `runner.py` (gather + keyword/location/recency filter + dedupe).
-- `jobagent/score.py` — LLM scores a job vs profile, returns JSON {score, reasons, gaps}.
-- `jobagent/generate.py` — cover letter + tailored resume in the user's voice. Pulls
-  content from `profile/master.md` (source of truth); resume comes back as structured
-  JSON and is rendered into a `resume.docx` that matches the user's own
-  `profile/resume.docx` template (fonts, margins, two-column rows). Uses writing samples
-  in `profile/samples/` as voice exemplars for the cover letter.
-- `jobagent/store.py` — SQLite state. Job status flow: new → scored → sent → picked →
-  generated (or skipped); stable `job_id` (sha1 of url). Also a **view-only `applications`
-  table** for the imported tracker. WAL + per-request connections so the web app is safe.
-- `jobagent/llm.py` — Claude (Anthropic) primary, Gemini fallback, both BYOK. Falls
-  back to Gemini when Claude errors or `ANTHROPIC_API_KEY` is unset.
-- `jobagent/pipeline.py` — ties scan / digest / pick-and-generate together;
-  `generate_for_jd(text|url)` powers ad-hoc generation (uses `ats.fetch_job` for ATS URLs).
-- `run_web.py` + `jobagent/web/` — FastAPI web UI (v1.1): dashboard, scan/pick, ad-hoc
-  generate, docs library + guarded downloads, CSV tracker import. HTTP Basic auth
-  (`WEB_USERNAME`/`WEB_PASSWORD`); Swagger disabled so `/docs` is the document library.
-- `jobagent/scheduler.py` — APScheduler daily scan (config `schedule:`) → digest via `notify`.
-- `jobagent/tracker.py` — CSV (Google Sheets export) → upsert into the `applications` table.
-- `config.yaml` — search keywords/locations, ATS company tokens, sources toggle, scoring
-  threshold, model names, `web:`/`schedule:`. `profile/profile.yaml` — the user's structured CV.
+- `run_agent.py` — CLI entry: one autonomous `agent_run` + email (cron-friendly alternative).
+- `run_web.py` + `jobagent/web/` — FastAPI monitoring console: agent dashboard (today's stats,
+  Ready-to-apply, triage, run history), manual jobs/generate/docs/tracker/insights/settings.
+  HTTP Basic auth (`WEB_USERNAME`/`WEB_PASSWORD`); Swagger disabled so `/docs` is the doc library.
+- `jobagent/pipeline.py` — `scan()` (fills optional `stats`), `agent_run()` (the autonomous
+  cycle: scan → select `score>=agent.min_score`, cap `agent.daily_cap` → `pick_and_generate`,
+  flagging triage), `needs_manual_apply()` (external-portal heuristic), `format_email()`,
+  `generate_for_jd(text|url)` (ad-hoc), `pick_and_generate`.
+- `jobagent/store.py` — SQLite. Job status flow: new → scored → sent → generated → applied
+  (branch: needs_attention / skipped). Columns incl. `applied_at`, `flag_reason`. `agent_runs`
+  table for run history; `applications` table = editable tracker. WAL + per-request connections.
+- `jobagent/notify.py` — **email only** (`send_email` via SMTP, BYOK `SMTP_*`); no-op if unset.
+- `jobagent/score.py` — LLM scores a job vs profile → JSON {score, reasons, gaps}; re-raises
+  `LLMError` so a run surfaces a clear provider-named message.
+- `jobagent/generate.py` — tailored resume (structured JSON → user's `profile/resume.docx`
+  template) + cover letter in the user's voice (`profile/samples/`), from `profile/master.md`.
+- `jobagent/llm.py` — Claude primary, Gemini fallback (BYOK); `LLMError` names which provider
+  failed and why. `jobagent/scheduler.py` — APScheduler daily `agent_run` → email.
+- `jobagent/ingest/` — `ats.py`, `boards.py`, `runner.py` (gather + filter + blocklist + dedupe).
+- `deploy/` — Oracle Cloud Always Free: `install.sh`, `jobagent.service` (systemd), `Caddyfile`
+  (DuckDNS + auto-HTTPS), `sync-secrets.sh` (scp `.env`+`profile/`).
+- `config.yaml` — `search` (+ `block_companies`), `sources`, `scoring`, **`agent`**
+  (enabled/min_score/daily_cap), `models`, `llm`, `web`, `schedule`.
 
 ## Conventions
-- Python 3.10+. Keep dependencies to what's in requirements.txt.
-- Bound LLM prompts (descriptions sliced to ~6000 chars) to stay inside free-tier limits.
-- Parse model JSON via `llm.extract_json` (handles code fences) — model output isn't trusted.
-- Don't commit: `.env`, `output/`, `*.db`, `profile/profile.yaml`, `profile/samples/*`.
-- Tests live in `tests/` (pytest, hermetic — stub network/LLM/Telegram, never call them).
-  Add tests for new logic; run `pytest`. Dev deps are in `requirements-dev.txt`.
+- Python 3.10+. Keep deps to requirements.txt (email uses stdlib `smtplib` — no new dep).
+- Parse model JSON via `llm.extract_json` — model output isn't trusted.
+- Don't commit: `.env`, `output/`, `*.db*`, `profile/*`, `.claude/`.
+- Tests in `tests/` (pytest, hermetic — stub network/LLM/SMTP). Add tests for new logic; `pytest`.
 
-## Known TODOs (backlog, not done)
-- (none open)
+## Done (V2)
+- Autonomous `agent_run` (auto-select + auto-generate, caps via `agent.min_score`/`daily_cap`).
+- Triage queue (LLMError + external-portal flagging) with Retry/Apply/Dismiss.
+- Email-only digest (`notify.send_email` + `pipeline.format_email`); Telegram removed.
+- Web console: agent dashboard, Apply (records + opens posting), Insights agent-activity chart.
+- Oracle Cloud Always Free deploy assets under `deploy/`.
 
-## Done
-- Rate-limit retry/backoff in `llm.py:chat()` (exponential backoff + jitter on 429s /
-  transient errors, per provider, fallback intact) + a fixed inter-pick delay in
-  `pipeline.pick_and_generate`. Tunables in `config.yaml` `llm:`.
-- `resume.docx` now renders from structured JSON into the user's own template
-  (`profile/resume.docx`) instead of plain styling. Content sourced from `profile/master.md`.
-- LLM provider switch: Claude (Anthropic) primary, Gemini fallback (both BYOK).
-- Scan scoring cap (`config.yaml` `scoring.max_to_score`) so free tiers aren't overrun;
-  unscored matches roll over to the next scan.
-- Telegram digest: numbered list (pick by `1 2 3`, not ids), apply links, HTML formatting.
-- Tests: hermetic `pytest` suite under `tests/` (no network/LLM/Telegram). Run with
-  `pip install -r requirements-dev.txt && pytest`.
-- v1.1 web UI (`run_web.py`, `jobagent/web/`): FastAPI dashboard for scan/pick, ad-hoc
-  generation from a pasted JD or ATS URL, docs library, view-only CSV tracker import, and an
-  embedded daily-scan scheduler. Password-protected (`WEB_USERNAME`/`WEB_PASSWORD` in `.env`).
+## Known TODOs (backlog)
+- Response/interview-rate analytics; time-to-response; per-company outcomes.

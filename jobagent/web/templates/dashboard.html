@@ -1,41 +1,96 @@
 {% extends "base.html" %}
 {% block title %}Dashboard{% endblock %}
-{% block heading %}Dashboard{% endblock %}
-{% block actions %}<form method="post" action="/scan"><button class="btn btn-primary btn-lg">Run scan now</button></form>{% endblock %}
+{% block heading %}Agent dashboard{% endblock %}
+{% block actions %}<form method="post" action="/agent/run"><button class="btn btn-primary btn-lg">Run agent now</button></form>{% endblock %}
 {% block content %}
-{% if task %}<div class="banner" id="task-banner"><span class="spin"></span> <span id="task-msg">Scanning for new roles…</span></div>{% endif %}
+{% if task %}<div class="banner" id="task-banner"><span class="spin"></span> <span id="task-msg">Running agent…</span></div>{% endif %}
 
 <div class="stats">
-  <a class="stat accent" href="/jobs"><div class="n">{{ counts.pending }}</div><div class="l">Awaiting your pick →</div></a>
-  <a class="stat" href="/docs"><div class="n">{{ counts.generated }}</div><div class="l">Jobs with documents →</div></a>
-  <a class="stat" href="/tracker"><div class="n">{{ counts.applications }}</div><div class="l">Tracked applications →</div></a>
-  <div class="stat soft"><div class="n n-sm">{{ next_run_h }}</div><div class="l">Next scheduled scan{% if next_run %} · {{ next_run }}{% endif %}</div></div>
+  <div class="stat accent"><div class="n">{{ stats.scanned }}</div><div class="l">Scanned today</div></div>
+  <div class="stat"><div class="n">{{ stats.matched }}</div><div class="l">Matched today</div></div>
+  <a class="stat" href="/docs"><div class="n">{{ stats.generated }}</div><div class="l">Documents prepared today →</div></a>
+  <a class="stat" href="/tracker"><div class="n">{{ stats.applied }}</div><div class="l">Applied today →</div></a>
+  <div class="stat soft"><div class="n n-sm">{{ next_run_h }}</div><div class="l">Next run{% if next_run %} · {{ next_run }}{% endif %}</div></div>
 </div>
 
-<p class="eyebrow">Needs your decision</p>
+{% if attention %}
+<p class="eyebrow">Needs your attention · {{ attention|length }}</p>
 <div class="table-wrap">
-  {% if pending %}
   <table>
-    <thead><tr><th class="num">Match</th><th>Role</th><th>Company</th><th>Location</th><th class="num">Posted</th></tr></thead>
+    <thead><tr><th>Role</th><th>Company</th><th>Why</th><th></th></tr></thead>
     <tbody>
-      {% for j in pending %}
+      {% for j in attention %}
+      <tr>
+        <td>{{ j.title }}</td>
+        <td>{{ j.company }}</td>
+        <td><span class="chip chip-rejected">{{ j.flag_reason or 'needs attention' }}</span></td>
+        <td class="rowact">
+          {% if j.docs and j.url %}<a class="btn btn-sm btn-primary" href="{{ j.url }}" target="_blank" rel="noopener">Apply ↗</a>{% endif %}
+          <form method="post" action="/jobs/{{ j.job_id }}/retry"><button class="btn btn-sm">Retry</button></form>
+          <form method="post" action="/jobs/{{ j.job_id }}/dismiss" onsubmit="return confirm('Dismiss this job?')"><button class="btn btn-sm btn-danger">Dismiss</button></form>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+
+<p class="eyebrow">Ready to apply · {{ ready|length }}</p>
+<div class="table-wrap">
+  {% if ready %}
+  <table>
+    <thead><tr><th class="num">Match</th><th>Role</th><th>Company</th><th>Documents</th><th></th></tr></thead>
+    <tbody>
+      {% for j in ready %}
       {% set sc = j.score or 0 %}{% set band = 'hi' if sc >= 70 else ('mid' if sc >= 40 else 'lo') %}
       <tr>
         <td class="num">
           <span class="score score-{{ band }}">{{ sc }}%</span>
           <div class="meter"><span class="fill-{{ band }}" style="width: {{ sc }}%"></span></div>
         </td>
-        <td><a href="/jobs">{{ j.title }}</a></td>
+        <td>{{ j.title }}</td>
         <td>{{ j.company }}</td>
-        <td class="cellmuted">{{ j.location or '—' }}</td>
-        <td class="num cellmuted">{{ (j.posted or '')[:10] or '—' }}</td>
+        <td class="files">
+          {% for d in j.doc_files %}<a class="file" href="/download?path={{ d.path | urlencode }}">↓ {{ d.name }}</a>{% endfor %}
+          {% if not j.doc_files %}<span class="cellmuted">—</span>{% endif %}
+        </td>
+        <td class="rowact">
+          <form method="post" action="/jobs/{{ j.job_id }}/apply">
+            <button class="btn btn-sm btn-primary">Apply ↗</button></form>
+          <form method="post" action="/jobs/{{ j.job_id }}/dismiss" onsubmit="return confirm('Dismiss this job?')">
+            <button class="btn btn-sm btn-danger">Dismiss</button></form>
+        </td>
       </tr>
       {% endfor %}
     </tbody>
   </table>
   {% else %}
-  <div class="empty">Nothing waiting. Run a scan, or generate from a specific posting.</div>
+  <div class="empty">Nothing prepared yet. Click <b>Run agent now</b>, or lower <code>min_score</code> in Settings.</div>
   {% endif %}
 </div>
-{% if pending %}<p style="margin-top:14px"><a href="/jobs">Go to Jobs to generate documents →</a></p>{% endif %}
+<p class="muted" style="font-size:12.5px;margin-top:8px">“Apply” records the application and opens the posting — you always submit it yourself.</p>
+
+<p class="eyebrow">Recent runs</p>
+<div class="table-wrap">
+  {% if runs %}
+  <table>
+    <thead><tr><th>Started</th><th class="num">Scanned</th><th class="num">Matched</th><th class="num">Prepared</th><th class="num">Attention</th><th>Status</th></tr></thead>
+    <tbody>
+      {% for r in runs %}
+      <tr>
+        <td class="mono">{{ (r.started_at or '')[:16] }}</td>
+        <td class="num">{{ r.scanned }}</td>
+        <td class="num">{{ r.matched }}</td>
+        <td class="num">{{ r.generated }}</td>
+        <td class="num">{{ r.needs_attention }}</td>
+        <td>{% if r.status == 'error' %}<span class="chip chip-rejected">error</span>{% elif r.status == 'running' %}<span class="chip">running</span>{% else %}<span class="chip chip-offer">ok</span>{% endif %}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <div class="empty">No runs yet.</div>
+  {% endif %}
+</div>
 {% endblock %}

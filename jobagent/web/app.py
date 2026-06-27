@@ -1,9 +1,9 @@
-"""FastAPI web UI for job-agent (v1.1).
+"""FastAPI monitoring console for the autopilot agent (V2).
 
-Wraps the existing pipeline/store: run scan/pick, generate from any JD (text or ATS
-URL), browse + filter generated docs, run an editable application tracker, and edit
-search settings. Password-protected (HTTP Basic). Swagger disabled so /docs is the
-document library.
+The dashboard surfaces the agent's work: today's stats, a "Ready to apply" queue, a
+triage "Needs attention" queue, and recent run history. It also keeps manual tools
+(jobs, ad-hoc generation, docs library, editable tracker, insights, settings).
+Password-protected (HTTP Basic); Swagger disabled so /docs is the document library.
 """
 import json
 import secrets
@@ -20,7 +20,7 @@ from fastapi.security import HTTPBasic, HTTPBasicCredentials
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
-from .. import pipeline, settings_io, tracker, webutil
+from .. import notify, pipeline, settings_io, tracker, webutil
 from ..config import ROOT, env, load_config
 from ..scheduler import next_run_time, start_scheduler
 from ..store import Store
@@ -72,6 +72,14 @@ def _int(v, default=None):
         return default
 
 
+def _docfiles(row) -> list[dict]:
+    """Parse a job row's stored docs JSON into [{name, path}, …]."""
+    try:
+        return [{"name": Path(p).name, "path": p} for p in json.loads(row.get("docs") or "[]")]
+    except Exception:
+        return []
+
+
 # ---- background tasks ----
 TASKS: dict[str, dict] = {}
 
@@ -117,26 +125,39 @@ def task_status(tid: str, _=Depends(require_auth)):
     return JSONResponse(t)
 
 
-# ---- dashboard ----
+# ---- dashboard (agent home) ----
 @app.get("/", response_class=HTMLResponse)
 def dashboard(request: Request, task: str = None, _=Depends(require_auth)):
     s = _store()
     try:
-        pend = [dict(r) for r in s.by_status("sent")]
-        counts = {"pending": len(pend), "generated": len(s.all_docs()),
-                  "applications": len(s.list_applications())}
+        stats = s.today_stats()
+        ready = [dict(r) for r in s.ready_to_apply()]
+        attention = [dict(r) for r in s.needs_attention()]
+        runs = [dict(r) for r in s.list_runs(8)]
     finally:
         s.close()
+    for r in ready:
+        r["doc_files"] = _docfiles(r)
     nrt = next_run_time(getattr(app.state, "scheduler", None))
     return render(request, "dashboard.html", {
-        "counts": counts, "pending": pend[:8],
+        "stats": stats, "ready": ready[:12], "attention": attention, "runs": runs,
         "next_run_h": webutil.human_until(nrt),
         "next_run": nrt.strftime("%b %d, %H:%M") if nrt else None, "task": task})
 
 
-@app.post("/scan")
-def do_scan(_=Depends(require_auth)):
-    tid = start_task("scan", lambda: len(pipeline.scan(load_config())))
+@app.post("/agent/run")
+def do_agent_run(_=Depends(require_auth)):
+    """Run one autonomous cycle in the background, then email the digest."""
+    def work():
+        summary = pipeline.agent_run(load_config())
+        try:
+            notify.send_email("job-agent — manual run", pipeline.format_email(summary))
+        except Exception as e:
+            print(f"[web] run email failed: {e}")
+        return {"generated": len(summary["generated"]),
+                "attention": len(summary["attention"]), "error": summary["error"]}
+
+    tid = start_task("agent", work)
     return RedirectResponse(f"/?task={tid}", status_code=303)
 
 
@@ -196,6 +217,46 @@ def jobs_remove(job_ids: list[str] = Form(default=[]), _=Depends(require_auth)):
         finally:
             s.close()
     return RedirectResponse("/jobs", status_code=303)
+
+
+# ---- autopilot actions (apply / retry / dismiss) ----
+@app.post("/jobs/{job_id}/apply")
+def job_apply(job_id: str, _=Depends(require_auth)):
+    """Record that *you* applied (never auto-submits) and open the posting to finish."""
+    s = _store()
+    try:
+        row = s.get(job_id)
+        url = (row["url"] if row else "") or ""
+        if row:
+            s.mark_applied(job_id)
+            s.add_application({
+                "role": row["title"], "company": row["company"],
+                "applied_date": datetime.now().strftime("%Y-%m-%d"), "stage": "Applied",
+                "location": row["location"], "notes": "via job-agent", "url": url})
+    finally:
+        s.close()
+    return RedirectResponse(url or "/", status_code=303)
+
+
+@app.post("/jobs/{job_id}/retry")
+def job_retry(job_id: str, _=Depends(require_auth)):
+    """Clear a triage flag so the job is eligible again (e.g. once an API limit resets)."""
+    s = _store()
+    try:
+        s.retry_job(job_id)
+    finally:
+        s.close()
+    return RedirectResponse("/", status_code=303)
+
+
+@app.post("/jobs/{job_id}/dismiss")
+def job_dismiss(job_id: str, _=Depends(require_auth)):
+    s = _store()
+    try:
+        s.set_status(job_id, "skipped")
+    finally:
+        s.close()
+    return RedirectResponse("/", status_code=303)
 
 
 # ---- generate ----
@@ -263,6 +324,8 @@ def insights_page(request: Request, _=Depends(require_auth)):
     s = _store()
     try:
         apps = [dict(r) for r in s.list_applications()]
+        prepared_rows = [dict(r) for r in s.all_docs()]            # agent-prepared (have docs)
+        applied_rows = [dict(r) for r in s.by_status("applied")]   # you marked applied
     finally:
         s.close()
 
@@ -279,10 +342,20 @@ def insights_page(request: Request, _=Depends(require_auth)):
     avg = round(sum(m_counts) / len(m_counts), 1) if m_counts else 0
     companies = len({(a["company"] or "").strip().lower() for a in apps if (a["company"] or "").strip()})
 
+    # Agent activity: documents prepared (by created_at) vs applications you made (applied_at)
+    prep_m = Counter(d.strftime("%Y-%m") for d in
+                     (webutil.to_dt(r.get("created_at")) for r in prepared_rows) if d)
+    appl_m = Counter(d.strftime("%Y-%m") for d in
+                     (webutil.to_dt(r.get("applied_at")) for r in applied_rows) if d)
+    act_labels = sorted(set(prep_m) | set(appl_m))[-12:]
+
     return render(request, "insights.html", {
         "stage_labels": [k for k, _ in stage_counts],
         "stage_counts": [c for _, c in stage_counts],
         "m_labels": m_labels, "m_counts": m_counts, "avg": avg,
+        "act_labels": act_labels,
+        "act_prepared": [prep_m.get(k, 0) for k in act_labels],
+        "act_applied": [appl_m.get(k, 0) for k in act_labels],
         "totals": {"apps": len(apps), "companies": companies, "avg": avg,
                    "this_month": months.get(datetime.now().strftime("%Y-%m"), 0)}})
 
@@ -385,7 +458,9 @@ def tracker_delete(app_id: int, _=Depends(require_auth)):
 # ---- settings (edit config.yaml) ----
 @app.get("/settings", response_class=HTMLResponse)
 def settings_page(request: Request, saved: str = None, _=Depends(require_auth)):
-    return render(request, "settings.html", {"s": settings_io.read(), "saved": saved})
+    return render(request, "settings.html",
+                  {"s": settings_io.read(), "saved": saved,
+                   "email_ok": notify.email_configured()})
 
 
 @app.post("/settings")
@@ -394,6 +469,7 @@ def settings_save(
     remote_ok: str = Form(None), max_age_days: str = Form(""), greenhouse: str = Form(""),
     lever: str = Form(""), ashby: str = Form(""), boards_enabled: str = Form(None),
     threshold: str = Form(""), digest_size: str = Form(""), max_to_score: str = Form(""),
+    agent_enabled: str = Form(None), min_score: str = Form(""), daily_cap: str = Form(""),
     claude: str = Form(""), gemini: str = Form(""), schedule_enabled: str = Form(None),
     schedule_time: str = Form(""), schedule_timezone: str = Form(""), _=Depends(require_auth),
 ):
@@ -404,7 +480,10 @@ def settings_save(
         "greenhouse": _lines(greenhouse), "lever": _lines(lever), "ashby": _lines(ashby),
         "boards_enabled": bool(boards_enabled),
         "threshold": _int(threshold, 60), "digest_size": _int(digest_size, 10),
-        "max_to_score": _int(max_to_score, 25), "claude": claude.strip(), "gemini": gemini.strip(),
+        "max_to_score": _int(max_to_score, 25),
+        "agent_enabled": bool(agent_enabled), "min_score": _int(min_score, 80),
+        "daily_cap": _int(daily_cap, 5),
+        "claude": claude.strip(), "gemini": gemini.strip(),
         "schedule_enabled": bool(schedule_enabled), "schedule_time": schedule_time.strip() or "08:00",
         "schedule_timezone": schedule_timezone.strip(),
     })

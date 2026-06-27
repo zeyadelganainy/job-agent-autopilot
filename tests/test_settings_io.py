@@ -20,7 +20,8 @@ def test_write_roundtrip_and_preserves_comments(tmp_path, monkeypatch):
         "block_companies": ["Bad Recruiters"], "remote_ok": True,
         "max_age_days": 7, "greenhouse": ["d2l"], "lever": [], "ashby": [],
         "boards_enabled": False, "threshold": 50, "digest_size": 10,
-        "max_to_score": 25, "claude": "claude-x", "gemini": "gemini-x",
+        "max_to_score": 25, "agent_enabled": True, "min_score": 85, "daily_cap": 4,
+        "claude": "claude-x", "gemini": "gemini-x",
         "schedule_enabled": True, "schedule_time": "09:00",
         "schedule_timezone": "America/Vancouver",
     })
@@ -29,4 +30,5 @@ def test_write_roundtrip_and_preserves_comments(tmp_path, monkeypatch):
     assert out["claude"] == "claude-x" and out["schedule_time"] == "09:00"
     assert out["greenhouse"] == ["d2l"] and out["remote_ok"] is True
     assert out["block_companies"] == ["Bad Recruiters"]
+    assert out["min_score"] == 85 and out["daily_cap"] == 4 and out["agent_enabled"] is True
     assert "# my config" in p.read_text(encoding="utf-8")   # comments survived

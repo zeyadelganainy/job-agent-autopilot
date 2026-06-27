@@ -31,6 +31,7 @@ def read() -> dict:
     sc = d.get("scoring", {}) or {}
     m = d.get("models", {}) or {}
     sch = d.get("schedule", {}) or {}
+    ag = d.get("agent", {}) or {}
     return {
         "keywords": list(s.get("keywords") or []),
         "locations": list(s.get("locations") or []),
@@ -44,6 +45,9 @@ def read() -> dict:
         "threshold": sc.get("threshold"),
         "digest_size": sc.get("digest_size"),
         "max_to_score": sc.get("max_to_score"),
+        "agent_enabled": bool(ag.get("enabled", True)),
+        "min_score": ag.get("min_score", 80),
+        "daily_cap": ag.get("daily_cap", 5),
         "claude": m.get("claude"),
         "gemini": m.get("gemini"),
         "schedule_enabled": bool(sch.get("enabled")),
@@ -72,6 +76,11 @@ def write(form: dict):
     d["scoring"]["threshold"] = form["threshold"]
     d["scoring"]["digest_size"] = form["digest_size"]
     d["scoring"]["max_to_score"] = form["max_to_score"]
+
+    d.setdefault("agent", {})
+    d["agent"]["enabled"] = form["agent_enabled"]
+    d["agent"]["min_score"] = form["min_score"]
+    d["agent"]["daily_cap"] = form["daily_cap"]
 
     d.setdefault("models", {})
     d["models"]["claude"] = form["claude"]

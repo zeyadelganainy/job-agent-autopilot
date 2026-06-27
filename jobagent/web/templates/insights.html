@@ -33,6 +33,18 @@
   </div>
 </div>
 
+<div class="panel" style="margin-top:16px">
+  <div class="panel-h"><h2>Agent activity over time</h2>
+    <span class="muted" style="font-size:12px">documents prepared vs. applications you made</span></div>
+  <div class="panel-b">
+    {% if act_labels %}
+    <div class="chartbox"><canvas id="agentActivity" role="img" aria-label="Documents prepared and applications made per month"></canvas></div>
+    {% else %}
+    <div class="empty">No agent activity yet. Run the agent, then apply to a few roles.</div>
+    {% endif %}
+  </div>
+</div>
+
 <p class="muted" style="margin-top:16px;font-size:13px">More analytics coming: response &amp; interview rates, time-to-response, and per-company outcomes.</p>
 
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
@@ -71,6 +83,24 @@
     options: { responsive: true, maintainAspectRatio: false, cutout: "58%",
       animation: REDUCE ? false : { duration: 250 },
       plugins: { legend: { position: "bottom", labels: { boxWidth: 12, usePointStyle: true, padding: 12 } } } }
+  });
+  {% endif %}
+
+  {% if act_labels %}
+  const al = {{ act_labels | tojson }}, prep = {{ act_prepared | tojson }}, appl = {{ act_applied | tojson }};
+  new Chart(document.getElementById("agentActivity"), {
+    type: "line",
+    data: { labels: al, datasets: [
+      { label: "Documents prepared", data: prep, borderColor: "#1e40af",
+        backgroundColor: "rgba(30,64,175,.08)", fill: true, tension: .35, borderWidth: 2, pointRadius: 3 },
+      { label: "Applications made", data: appl, borderColor: "#15803d",
+        backgroundColor: "rgba(21,128,61,.08)", fill: true, tension: .35, borderWidth: 2, pointRadius: 3 }
+    ]},
+    options: { responsive: true, maintainAspectRatio: false, animation: REDUCE ? false : { duration: 250 },
+      interaction: { mode: "index", intersect: false },
+      plugins: { legend: { position: "top", labels: { boxWidth: 12, usePointStyle: true } } },
+      scales: { y: { beginAtZero: true, ticks: { precision: 0 }, grid: { color: "#eef2f8" } },
+                x: { grid: { display: false } } } }
   });
   {% endif %}
 })();

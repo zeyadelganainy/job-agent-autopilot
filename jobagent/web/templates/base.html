@@ -35,8 +35,8 @@
         <span>Settings</span></a>
     </nav>
     <div class="sidebar-foot">
-      <div class="meta">Next scan <span id="next-scan" data-next="{{ next_scan_ts }}">{{ next_scan }}</span></div>
-      <form method="post" action="/scan"><button class="btn btn-block">Run scan</button></form>
+      <div class="meta">Next run <span id="next-scan" data-next="{{ next_scan_ts }}">{{ next_scan }}</span></div>
+      <form method="post" action="/agent/run"><button class="btn btn-block">Run agent now</button></form>
     </div>
   </aside>
 

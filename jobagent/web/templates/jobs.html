@@ -2,7 +2,7 @@
 {% import "_macros.html" as ui %}
 {% block title %}Jobs{% endblock %}
 {% block heading %}Jobs{% endblock %}
-{% block actions %}<form method="post" action="/scan"><button class="btn">Run scan</button></form>{% endblock %}
+{% block actions %}<form method="post" action="/agent/run"><button class="btn">Run agent</button></form>{% endblock %}
 {% block content %}
 {% if task %}<div class="banner" id="task-banner"><span class="spin"></span> <span id="task-msg">Generating documents…</span></div>{% endif %}
 

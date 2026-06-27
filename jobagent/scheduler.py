@@ -1,33 +1,34 @@
-"""Embedded daily-scan scheduler for the web app.
+"""Embedded daily scheduler for the autopilot agent.
 
-Runs pipeline.scan at a configured local time and pushes the digest to Telegram via
-the existing notify channel. Only active while the web app process is running.
+Runs the full autonomous cycle (pipeline.agent_run) at a configured local time and emails
+you the digest. Active while the web app process is running (it stays up on the VM).
 """
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
 
 from .config import load_config
-from .notify import send_message
-from .pipeline import format_digest, pending, scan
+from .notify import send_email
+from .pipeline import agent_run, format_email, format_digest, pending, scan
 
 
-def _daily_scan():
+def _daily_run():
     cfg = load_config()
-    print("[scheduler] running daily scan…")
+    agent_on = (cfg.get("agent") or {}).get("enabled", True)
+    print("[scheduler] running daily agent…" if agent_on else "[scheduler] running daily scan…")
     try:
-        scan(cfg)
+        if agent_on:
+            summary = agent_run(cfg)
+            send_email("job-agent — daily run", format_email(summary))
+        else:                                  # agent disabled → scan-only digest
+            scan(cfg)
+            send_email("job-agent — new matches", format_digest(pending(cfg)))
+        print("[scheduler] run complete; digest emailed")
     except Exception as e:
-        print(f"[scheduler] scan failed: {e}")
+        print(f"[scheduler] run failed: {e}")
         try:
-            send_message(f"Scheduled scan failed — {e}")
+            send_email("job-agent — run failed", f"<p>The scheduled run failed:</p><p>{e}</p>")
         except Exception:
             pass
-        return
-    try:
-        send_message(format_digest(pending(cfg)))
-        print("[scheduler] pushed digest to Telegram")
-    except Exception as e:
-        print(f"[scheduler] digest push failed: {e}")
 
 
 def start_scheduler(cfg=None):
@@ -48,15 +49,15 @@ def start_scheduler(cfg=None):
 
     hh, mm = (str(sc.get("time", "08:00")).split(":") + ["0"])[:2]
     scheduler = BackgroundScheduler(timezone=tz) if tz else BackgroundScheduler()
-    scheduler.add_job(_daily_scan, CronTrigger(hour=int(hh), minute=int(mm)),
-                      id="daily_scan", replace_existing=True)
+    scheduler.add_job(_daily_run, CronTrigger(hour=int(hh), minute=int(mm)),
+                      id="daily_run", replace_existing=True)
     scheduler.start()
-    print(f"[scheduler] daily scan scheduled at {hh}:{mm} {sc.get('timezone') or 'UTC'}")
+    print(f"[scheduler] daily run scheduled at {hh}:{mm} {sc.get('timezone') or 'UTC'}")
     return scheduler
 
 
 def next_run_time(scheduler):
     if not scheduler:
         return None
-    job = scheduler.get_job("daily_scan")
+    job = scheduler.get_job("daily_run")
     return job.next_run_time if job else None

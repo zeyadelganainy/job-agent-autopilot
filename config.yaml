@@ -56,6 +56,12 @@ scoring:
   max_to_score: 25      # cap NEW jobs scored per scan (free-tier friendly); the rest
                         # are left for the next scan. 0 = unlimited.
 
+# ---- Autopilot agent ----
+agent:
+  enabled: true         # scheduled runs do the full auto cycle (scan + auto-generate docs)
+  min_score: 80         # auto-generate résumé + cover letter only at/above this match score
+  daily_cap: 5          # max documents auto-generated per run (LLM-cost guard)
+
 # ---- Models (config-driven so you can swap freely) ----
 models:
   claude: claude-opus-4-8   # primary (Anthropic, paid BYOK); swap to claude-sonnet-4-6 / claude-haiku-4-5 to cut cost
@@ -69,15 +75,15 @@ llm:
   max_tokens: 4096        # per-response output cap (Claude requires it)
   gen_delay_seconds: 3    # pause between sequential doc gens on a /pick batch
 
-# ---- Web UI (v1.1) ----
+# ---- Web monitoring console ----
 web:
-  host: 0.0.0.0           # 0.0.0.0 = reachable on your LAN/Tailscale; 127.0.0.1 = localhost only
+  host: 0.0.0.0           # 0.0.0.0 = reachable from outside (behind Caddy/HTTPS on the VM); 127.0.0.1 = localhost only
   port: 8000
 
-# ---- Scheduled daily scan (v1.1; runs while the web app is up) ----
+# ---- Scheduled daily agent run (runs while the web app is up) ----
 schedule:
   enabled: true
-  time: "08:00"           # local 24h time to run the daily scan + push the Telegram digest
+  time: "08:00"           # local 24h time to run the agent + email the digest
   timezone: America/Vancouver
 
 paths:
