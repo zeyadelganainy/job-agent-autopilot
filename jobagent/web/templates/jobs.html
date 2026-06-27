@@ -1,0 +1,76 @@
+{% extends "base.html" %}
+{% import "_macros.html" as ui %}
+{% block title %}Jobs{% endblock %}
+{% block heading %}Jobs{% endblock %}
+{% block actions %}<form method="post" action="/scan"><button class="btn">Run scan</button></form>{% endblock %}
+{% block content %}
+{% if task %}<div class="banner" id="task-banner"><span class="spin"></span> <span id="task-msg">Generating documents…</span></div>{% endif %}
+
+<form class="filters" method="get" action="/jobs">
+  <input type="text" name="company" value="{{ f.company }}" placeholder="Company">
+  <input type="text" name="location" value="{{ f.location }}" placeholder="Location">
+  <label class="inl">Min match
+    <select name="min_score">
+      {% for v in ['', '40', '60', '70', '80'] %}
+      <option value="{{ v }}" {{ 'selected' if f.min_score == v }}>{{ v ~ '%' if v else 'any' }}</option>
+      {% endfor %}
+    </select>
+  </label>
+  <label class="inl">Posted
+    <select name="max_age">
+      <option value="" {{ 'selected' if not f.max_age }}>any time</option>
+      <option value="7" {{ 'selected' if f.max_age == '7' }}>last 7 days</option>
+      <option value="14" {{ 'selected' if f.max_age == '14' }}>last 14 days</option>
+      <option value="30" {{ 'selected' if f.max_age == '30' }}>last 30 days</option>
+    </select>
+  </label>
+  <input type="hidden" name="sort" value="{{ f.sort }}"><input type="hidden" name="dir" value="{{ f.dir }}">
+  <button class="btn">Apply</button>
+  {% if f.company or f.location or f.min_score or f.max_age %}<a class="btn btn-ghost" href="/jobs">Clear</a>{% endif %}
+</form>
+
+<div class="table-wrap">
+  {% if jobs %}
+  <form method="post" action="/pick">
+    <table>
+      <thead><tr>
+        <th style="width:34px"></th>
+        <th class="num">{{ ui.sorth('Match', 'match', f) }}</th>
+        <th>Role</th><th>Company</th>
+        <th>{{ ui.sorth('Location', 'location', f) }}</th>
+        <th>{{ ui.sorth('Posted', 'date', f) }}</th>
+        <th></th>
+      </tr></thead>
+      <tbody>
+        {% for j in jobs %}
+        {% set sc = j.score or 0 %}{% set band = 'hi' if sc >= 70 else ('mid' if sc >= 40 else 'lo') %}
+        <tr>
+          <td><input type="checkbox" name="job_ids" value="{{ j.job_id }}"></td>
+          <td class="num">
+            <span class="score score-{{ band }}">{{ sc }}%</span>
+            <div class="meter"><span class="fill-{{ band }}" style="width: {{ sc }}%"></span></div>
+          </td>
+          <td>{{ j.title }}{% if j.reasons %}<div class="rowsub">{{ j.reasons }}</div>{% endif %}</td>
+          <td>{{ j.company }}</td>
+          <td class="cellmuted">{{ j.location or '—' }}</td>
+          <td class="num cellmuted">{{ (j.posted or '')[:10] or '—' }}</td>
+          <td>{% if j.url %}<a href="{{ j.url }}" target="_blank" rel="noopener">posting ↗</a>{% endif %}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    <div class="tablefoot">
+      <div class="actionbar" style="margin:0">
+        <button class="btn btn-primary">Generate selected</button>
+        <button class="btn btn-danger" formaction="/jobs/remove"
+                onclick="return confirm('Remove the selected postings from your board? A future scan won\'t bring them back.')">Remove selected</button>
+        <span class="muted">tick rows, then generate or remove</span>
+      </div>
+      {{ ui.pager(pg, f) }}
+    </div>
+  </form>
+  {% else %}
+  <div class="empty">No jobs match. <a href="/jobs">Clear filters</a> or run a scan.</div>
+  {% endif %}
+</div>
+{% endblock %}

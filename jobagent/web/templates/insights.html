@@ -1,0 +1,78 @@
+{% extends "base.html" %}
+{% block title %}Insights{% endblock %}
+{% block heading %}Insights{% endblock %}
+{% block content %}
+<div class="stats">
+  <div class="stat accent"><div class="n">{{ totals.apps }}</div><div class="l">Applications tracked</div></div>
+  <div class="stat"><div class="n">{{ totals.companies }}</div><div class="l">Companies</div></div>
+  <div class="stat"><div class="n">{{ totals.avg }}</div><div class="l">Avg applications / month</div></div>
+  <div class="stat"><div class="n">{{ totals.this_month }}</div><div class="l">Applied this month</div></div>
+</div>
+
+<div class="ins-grid" style="margin-top:22px">
+  <div class="panel">
+    <div class="panel-h"><h2>Applications over time</h2>
+      <span class="muted" style="font-size:12px">monthly · avg {{ totals.avg }}</span></div>
+    <div class="panel-b">
+      {% if m_labels %}
+      <div class="chartbox"><canvas id="overTime" role="img" aria-label="Applications submitted per month, with an average line"></canvas></div>
+      {% else %}
+      <div class="empty">No dated applications yet. Add an applied date in the Tracker.</div>
+      {% endif %}
+    </div>
+  </div>
+  <div class="panel">
+    <div class="panel-h"><h2>By stage</h2></div>
+    <div class="panel-b">
+      {% if stage_labels %}
+      <div class="chartbox"><canvas id="byStage" role="img" aria-label="Applications by stage"></canvas></div>
+      {% else %}
+      <div class="empty">No applications yet. Import your tracker.</div>
+      {% endif %}
+    </div>
+  </div>
+</div>
+
+<p class="muted" style="margin-top:16px;font-size:13px">More analytics coming: response &amp; interview rates, time-to-response, and per-company outcomes.</p>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script>
+(function () {
+  if (typeof Chart === "undefined") return;   // offline / CDN blocked — empty states stay
+  const REDUCE = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  Chart.defaults.font.family = "Fira Sans, system-ui, sans-serif";
+  Chart.defaults.color = "#5a6b86";
+
+  {% if m_labels %}
+  const labels = {{ m_labels | tojson }}, data = {{ m_counts | tojson }}, avg = {{ avg }};
+  new Chart(document.getElementById("overTime"), {
+    type: "line",
+    data: { labels, datasets: [
+      { label: "Applications", data, borderColor: "#1e40af", backgroundColor: "rgba(30,64,175,.10)",
+        fill: true, tension: .35, borderWidth: 2, pointRadius: 3, pointBackgroundColor: "#1e40af" },
+      { label: "Average (" + avg + ")", data: labels.map(() => avg), borderColor: "#b45309",
+        borderDash: [6, 4], borderWidth: 1.5, pointRadius: 0, fill: false }
+    ]},
+    options: { responsive: true, maintainAspectRatio: false, animation: REDUCE ? false : { duration: 250 },
+      interaction: { mode: "index", intersect: false },
+      plugins: { legend: { position: "top", labels: { boxWidth: 12, usePointStyle: true } } },
+      scales: { y: { beginAtZero: true, ticks: { precision: 0 }, grid: { color: "#eef2f8" } },
+                x: { grid: { display: false } } } }
+  });
+  {% endif %}
+
+  {% if stage_labels %}
+  const palette = ["#1e40af","#3b82f6","#b45309","#15803d","#64748b","#7c3aed","#0891b2","#be185d","#0d9488","#a16207"];
+  const sl = {{ stage_labels | tojson }}, sc = {{ stage_counts | tojson }};
+  new Chart(document.getElementById("byStage"), {
+    type: "doughnut",
+    data: { labels: sl, datasets: [{ data: sc, backgroundColor: sl.map((_, i) => palette[i % palette.length]),
+            borderColor: "#fff", borderWidth: 2 }] },
+    options: { responsive: true, maintainAspectRatio: false, cutout: "58%",
+      animation: REDUCE ? false : { duration: 250 },
+      plugins: { legend: { position: "bottom", labels: { boxWidth: 12, usePointStyle: true, padding: 12 } } } }
+  });
+  {% endif %}
+})();
+</script>
+{% endblock %}

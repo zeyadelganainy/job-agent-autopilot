@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+{% block title %}Generate{% endblock %}
+{% block heading %}Generate documents{% endblock %}
+{% block content %}
+<div class="panel" style="max-width:780px">
+  <div class="panel-b">
+    <form method="post" action="/generate">
+      <div class="field">
+        <label>Job description, or ATS URL</label>
+        <textarea name="source" placeholder="Paste the job description — or a Greenhouse / Lever / Ashby job URL…"></textarea>
+      </div>
+      <div class="row2">
+        <div class="field"><label>Role title <span class="muted">— optional</span></label>
+          <input type="text" name="title" placeholder="e.g. Backend Developer"></div>
+        <div class="field"><label>Company <span class="muted">— optional</span></label>
+          <input type="text" name="company" placeholder="e.g. D2L"></div>
+      </div>
+      <div class="actionbar">
+        <button class="btn btn-primary">Generate résumé + cover letter</button>
+        <span class="muted">runs the LLM · ~10–40s</span>
+      </div>
+    </form>
+  </div>
+</div>
+
+{% if result %}
+<div class="result" style="max-width:780px">
+  {% if result.ok %}
+  <div class="panel">
+    <div class="panel-h"><h2>Generated · {{ result.job.title }} — {{ result.job.company }}</h2></div>
+    <div class="panel-b">
+      <div class="files">
+        {% for d in result.docs %}<a class="file" href="/download?path={{ d.path | urlencode }}">↓ {{ d.name }}</a>{% endfor %}
+      </div>
+    </div>
+  </div>
+  {% else %}
+  <div class="banner" style="background:#f6e4e0;border-color:#e6b8af;color:#7a261a">Couldn't generate: {{ result.error }}</div>
+  {% endif %}
+</div>
+{% endif %}
+{% endblock %}

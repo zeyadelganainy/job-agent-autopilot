@@ -1,0 +1,19 @@
+{% macro pager(pg, params={}) %}
+{% if pg and pg.total %}
+<div class="pager">
+  <span class="pager-info">{{ pg.start }}–{{ pg.end }} of {{ pg.total }}</span>
+  {% set qs = [] %}
+  {% for k, v in params.items() %}{% if v %}{% set _ = qs.append(k ~ '=' ~ (v | string | urlencode)) %}{% endif %}{% endfor %}
+  {% set base = '?' ~ (qs | join('&')) ~ ('&' if qs else '') %}
+  {% if pg.page > 1 %}<a class="btn btn-sm" href="{{ base }}page={{ pg.page - 1 }}">‹ Prev</a>{% endif %}
+  <span class="pager-page">Page {{ pg.page }} / {{ pg.pages }}</span>
+  {% if pg.page < pg.pages %}<a class="btn btn-sm" href="{{ base }}page={{ pg.page + 1 }}">Next ›</a>{% endif %}
+</div>
+{% endif %}
+{% endmacro %}
+
+{% macro sorth(label, key, f) %}
+{% set d = 'asc' if (f.sort == key and f.dir == 'desc') else 'desc' %}
+{% set arrow = (' ▾' if f.dir == 'desc' else ' ▴') if f.sort == key else '' %}
+<a class="sorth {{ 'on' if f.sort == key }}" href="?{% for k,v in f.items() %}{% if v and k not in ['sort','dir'] %}{{ k }}={{ v|string|urlencode }}&{% endif %}{% endfor %}sort={{ key }}&dir={{ d }}">{{ label }}{{ arrow }}</a>
+{% endmacro %}

@@ -1,0 +1,4 @@
+# Dev/test only — not needed to run the app.
+-r requirements.txt
+pytest>=7.0
+httpx>=0.27.0          # FastAPI TestClient

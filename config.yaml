@@ -1,0 +1,89 @@
+# ---- What to search for ----
+search:
+  keywords:                 # any match counts; used to filter ATS feeds and query boards
+    - software engineer
+    - backend engineer
+    - new grad
+  locations:                # a job is kept if its location text contains any of these
+    - Canada                #   (case-insensitive). Canada-only set below.
+    - British Columbia
+    - Ontario
+    - Quebec
+    - Alberta
+    - Manitoba
+    - Saskatchewan
+    - Nova Scotia
+    - Vancouver
+    - Toronto
+    - Montreal
+    - Calgary
+    - Ottawa
+    - Edmonton
+    - Winnipeg
+    - Kelowna
+    - Victoria
+    - Waterloo
+    - Kitchener
+    - Halifax
+    - Mississauga
+  remote_ok: true
+  max_age_days: 7           # ignore postings older than this (when a date is available)
+  block_companies: []       # never show roles whose company matches any of these
+                            # (case-insensitive substring) — recruiters/staffing/scams
+
+# ---- Where to pull from ----
+sources:
+  # Public ATS JSON feeds — no scraping, no ToS issues. STRONGLY preferred.
+  # Find the token in a company's careers URL, e.g.
+  #   greenhouse: boards.greenhouse.io/<token>
+  #   lever:      jobs.lever.co/<token>
+  #   ashby:      jobs.ashbyhq.com/<token>
+  ats:
+    greenhouse: [stripe, figma, clio, visier, d2l, thinkific, geocomply, janeapp, wealthsimple, globalrelay]      # <-- replace with your target companies
+    lever: []
+    ashby: [1password]
+
+  # Job boards via JobSpy. Convenient but ToS-grey + can get IP-blocked. Optional.
+  boards:
+    enabled: true                   # flip to true to use
+    sites: [indeed, linkedin, zip_recruiter, google]
+    results_per_site: 25
+
+# ---- Scoring ----
+scoring:
+  threshold: 60         # only include jobs scoring >= this in the digest
+  digest_size: 10       # max jobs per digest
+  max_to_score: 25      # cap NEW jobs scored per scan (free-tier friendly); the rest
+                        # are left for the next scan. 0 = unlimited.
+
+# ---- Models (config-driven so you can swap freely) ----
+models:
+  claude: claude-opus-4-8   # primary (Anthropic, paid BYOK); swap to claude-sonnet-4-6 / claude-haiku-4-5 to cut cost
+  gemini: gemini-2.5-flash  # fallback (free tier)
+
+# ---- LLM rate-limit handling (all optional; code has the same defaults) ----
+llm:
+  max_retries: 5          # attempts per provider before giving up / falling back
+  base_delay_seconds: 2   # exponential backoff base
+  max_delay_seconds: 60   # cap on any single backoff sleep
+  max_tokens: 4096        # per-response output cap (Claude requires it)
+  gen_delay_seconds: 3    # pause between sequential doc gens on a /pick batch
+
+# ---- Web UI (v1.1) ----
+web:
+  host: 0.0.0.0           # 0.0.0.0 = reachable on your LAN/Tailscale; 127.0.0.1 = localhost only
+  port: 8000
+
+# ---- Scheduled daily scan (v1.1; runs while the web app is up) ----
+schedule:
+  enabled: true
+  time: "08:00"           # local 24h time to run the daily scan + push the Telegram digest
+  timezone: America/Vancouver
+
+paths:
+  db: jobs.db
+  output: output
+  profile: profile/profile.yaml      # compact CV used for scoring
+  master: profile/master.md          # full source-of-truth used to generate docs
+  template: profile/resume.docx       # Word template; generated resumes match its look
+  samples: profile/samples

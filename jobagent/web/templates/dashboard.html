@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+{% block title %}Dashboard{% endblock %}
+{% block heading %}Dashboard{% endblock %}
+{% block actions %}<form method="post" action="/scan"><button class="btn btn-primary btn-lg">Run scan now</button></form>{% endblock %}
+{% block content %}
+{% if task %}<div class="banner" id="task-banner"><span class="spin"></span> <span id="task-msg">Scanning for new roles…</span></div>{% endif %}
+
+<div class="stats">
+  <a class="stat accent" href="/jobs"><div class="n">{{ counts.pending }}</div><div class="l">Awaiting your pick →</div></a>
+  <a class="stat" href="/docs"><div class="n">{{ counts.generated }}</div><div class="l">Jobs with documents →</div></a>
+  <a class="stat" href="/tracker"><div class="n">{{ counts.applications }}</div><div class="l">Tracked applications →</div></a>
+  <div class="stat soft"><div class="n n-sm">{{ next_run_h }}</div><div class="l">Next scheduled scan{% if next_run %} · {{ next_run }}{% endif %}</div></div>
+</div>
+
+<p class="eyebrow">Needs your decision</p>
+<div class="table-wrap">
+  {% if pending %}
+  <table>
+    <thead><tr><th class="num">Match</th><th>Role</th><th>Company</th><th>Location</th><th class="num">Posted</th></tr></thead>
+    <tbody>
+      {% for j in pending %}
+      {% set sc = j.score or 0 %}{% set band = 'hi' if sc >= 70 else ('mid' if sc >= 40 else 'lo') %}
+      <tr>
+        <td class="num">
+          <span class="score score-{{ band }}">{{ sc }}%</span>
+          <div class="meter"><span class="fill-{{ band }}" style="width: {{ sc }}%"></span></div>
+        </td>
+        <td><a href="/jobs">{{ j.title }}</a></td>
+        <td>{{ j.company }}</td>
+        <td class="cellmuted">{{ j.location or '—' }}</td>
+        <td class="num cellmuted">{{ (j.posted or '')[:10] or '—' }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <div class="empty">Nothing waiting. Run a scan, or generate from a specific posting.</div>
+  {% endif %}
+</div>
+{% if pending %}<p style="margin-top:14px"><a href="/jobs">Go to Jobs to generate documents →</a></p>{% endif %}
+{% endblock %}

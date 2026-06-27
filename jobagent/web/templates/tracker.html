@@ -1,0 +1,78 @@
+{% extends "base.html" %}
+{% import "_macros.html" as ui %}
+{% block title %}Tracker{% endblock %}
+{% block heading %}Application tracker{% endblock %}
+{% block actions %}
+<form method="post" action="/tracker/import" enctype="multipart/form-data" class="importform">
+  <label class="filein">
+    <input type="file" name="file" accept=".csv" required
+           onchange="this.parentNode.querySelector('.fn').textContent=(this.files[0]||{}).name||'Choose CSV…'">
+    <span class="fn">Choose CSV…</span>
+  </label>
+  <button class="btn btn-primary">Import</button>
+</form>
+{% endblock %}
+{% block content %}
+{% if summary %}<div class="banner">{{ summary }}.</div>{% endif %}
+
+<div class="toolbar">
+  <form class="filters" method="get" action="/tracker">
+    <input type="text" name="company" value="{{ f.company }}" placeholder="Company">
+    <label class="inl">Stage
+      <select name="stage">
+        <option value="">all</option>
+        {% for st in stages %}<option value="{{ st }}" {{ 'selected' if f.stage == st }}>{{ st }}</option>{% endfor %}
+      </select>
+    </label>
+    <input type="hidden" name="sort" value="{{ f.sort }}"><input type="hidden" name="dir" value="{{ f.dir }}">
+    <button class="btn">Filter</button>
+    {% if f.company or f.stage %}<a class="btn btn-ghost" href="/tracker">Clear</a>{% endif %}
+  </form>
+  <details class="addbox">
+    <summary class="btn">+ Add</summary>
+    <form method="post" action="/tracker/add" class="addform">
+      <input name="company" placeholder="Company" required>
+      <input name="role" placeholder="Role">
+      <input name="stage" placeholder="Stage">
+      <input name="applied_date" placeholder="Applied (YYYY-MM-DD)">
+      <input name="location" placeholder="Location">
+      <input name="notes" placeholder="Notes">
+      <button class="btn btn-primary">Add application</button>
+    </form>
+  </details>
+</div>
+
+<div class="table-wrap">
+  <table>
+    <thead><tr>
+      <th>{{ ui.sorth('Company', 'company', f) }}</th>
+      <th>{{ ui.sorth('Role', 'role', f) }}</th>
+      <th>{{ ui.sorth('Stage', 'stage', f) }}</th>
+      <th class="num">{{ ui.sorth('Applied', 'applied', f) }}</th>
+      <th>{{ ui.sorth('Location', 'location', f) }}</th>
+      <th>Notes</th><th></th>
+    </tr></thead>
+    <tbody>
+      {% for a in apps %}
+      <tr>
+        <td>{{ a.company }}</td>
+        <td>{{ a.role }}</td>
+        <td>{% if a.stage %}<span class="chip chip-{{ a.stage | lower | replace(' ', '-') }}">{{ a.stage }}</span>{% endif %}</td>
+        <td class="num cellmuted">{{ a.applied_date or '—' }}</td>
+        <td class="cellmuted">{{ a.location or '—' }}</td>
+        <td class="notes">{{ a.notes }}</td>
+        <td class="rowact">
+          <a class="btn btn-sm" href="/tracker/{{ a.id }}/edit">Edit</a>
+          <form method="post" action="/tracker/{{ a.id }}/delete" onsubmit="return confirm('Delete this application?')">
+            <button class="btn btn-sm btn-danger">Delete</button>
+          </form>
+        </td>
+      </tr>
+      {% else %}
+      <tr><td colspan="7"><div class="empty">No applications yet. Import a CSV or add one above.</div></td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+<div class="tablefoot">{{ ui.pager(pg, f) }}</div>
+{% endblock %}

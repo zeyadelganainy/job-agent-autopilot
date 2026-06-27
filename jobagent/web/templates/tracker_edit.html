@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% block title %}Edit application{% endblock %}
+{% block heading %}Edit application{% endblock %}
+{% block content %}
+<div class="panel" style="max-width:620px">
+  <div class="panel-b">
+    <form method="post" action="/tracker/{{ a.id }}/edit">
+      <div class="row2">
+        <div class="field"><label>Company</label><input name="company" value="{{ a.company or '' }}"></div>
+        <div class="field"><label>Role</label><input name="role" value="{{ a.role or '' }}"></div>
+      </div>
+      <div class="row2">
+        <div class="field"><label>Stage</label><input name="stage" value="{{ a.stage or '' }}"></div>
+        <div class="field"><label>Applied date</label><input name="applied_date" value="{{ a.applied_date or '' }}"></div>
+      </div>
+      <div class="field"><label>Location</label><input name="location" value="{{ a.location or '' }}"></div>
+      <div class="field"><label>Notes</label><textarea name="notes" style="min-height:90px">{{ a.notes or '' }}</textarea></div>
+      <div class="actionbar">
+        <button class="btn btn-primary">Save changes</button>
+        <a class="btn btn-ghost" href="/tracker">Cancel</a>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}

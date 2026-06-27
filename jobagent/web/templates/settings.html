@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+{% block title %}Settings{% endblock %}
+{% block heading %}Search settings{% endblock %}
+{% block content %}
+{% if saved %}<div class="banner">Settings saved. The schedule was reapplied.</div>{% endif %}
+<p class="muted" style="margin-top:0">Edits are written back to <span class="mono">config.yaml</span> (comments preserved). Lists: one per line or comma-separated.</p>
+
+<form method="post" action="/settings" style="max-width:820px">
+
+  <div class="panel"><div class="panel-h"><h2>What to search for</h2></div><div class="panel-b">
+    <div class="row2">
+      <div class="field"><label>Keywords</label>
+        <textarea name="keywords" style="min-height:90px">{{ s.keywords | join('\n') }}</textarea></div>
+      <div class="field"><label>Locations</label>
+        <textarea name="locations" style="min-height:90px">{{ s.locations | join('\n') }}</textarea></div>
+    </div>
+    <div class="field"><label>Blocked companies <span class="muted">— recruiters / staffing / scams; matches anywhere in the company name</span></label>
+      <textarea name="block_companies" style="min-height:70px">{{ s.block_companies | join('\n') }}</textarea></div>
+    <div class="row2">
+      <div class="field"><label>Ignore postings older than (days)</label>
+        <input name="max_age_days" value="{{ s.max_age_days if s.max_age_days is not none else '' }}"></div>
+      <div class="field"><label>&nbsp;</label>
+        <label class="check"><input type="checkbox" name="remote_ok" {{ 'checked' if s.remote_ok }}> Allow remote roles</label></div>
+    </div>
+  </div></div>
+
+  <div class="panel"><div class="panel-h"><h2>Companies (ATS tokens)</h2></div><div class="panel-b">
+    <div class="row3">
+      <div class="field"><label>Greenhouse</label><textarea name="greenhouse">{{ s.greenhouse | join('\n') }}</textarea></div>
+      <div class="field"><label>Lever</label><textarea name="lever">{{ s.lever | join('\n') }}</textarea></div>
+      <div class="field"><label>Ashby</label><textarea name="ashby">{{ s.ashby | join('\n') }}</textarea></div>
+    </div>
+    <label class="check"><input type="checkbox" name="boards_enabled" {{ 'checked' if s.boards_enabled }}> Enable job boards (JobSpy — ToS-grey, can get IP-blocked)</label>
+  </div></div>
+
+  <div class="panel"><div class="panel-h"><h2>Scoring</h2></div><div class="panel-b">
+    <div class="row3">
+      <div class="field"><label>Threshold (min % to show)</label><input name="threshold" value="{{ s.threshold }}"></div>
+      <div class="field"><label>Digest size</label><input name="digest_size" value="{{ s.digest_size }}"></div>
+      <div class="field"><label>Max scored per scan</label><input name="max_to_score" value="{{ s.max_to_score }}"></div>
+    </div>
+  </div></div>
+
+  <div class="panel"><div class="panel-h"><h2>Models &amp; schedule</h2></div><div class="panel-b">
+    <div class="row2">
+      <div class="field"><label>Claude model (primary)</label><input name="claude" value="{{ s.claude }}"></div>
+      <div class="field"><label>Gemini model (fallback)</label><input name="gemini" value="{{ s.gemini }}"></div>
+    </div>
+    <div class="row3">
+      <div class="field"><label>Daily scan time (24h)</label><input name="schedule_time" value="{{ s.schedule_time }}"></div>
+      <div class="field"><label>Timezone</label><input name="schedule_timezone" value="{{ s.schedule_timezone }}"></div>
+      <div class="field"><label>&nbsp;</label>
+        <label class="check"><input type="checkbox" name="schedule_enabled" {{ 'checked' if s.schedule_enabled }}> Run daily scan</label></div>
+    </div>
+  </div></div>
+
+  <div class="actionbar"><button class="btn btn-primary btn-lg">Save settings</button></div>
+</form>
+{% endblock %}

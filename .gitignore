@@ -1,0 +1,17 @@
+.env
+output/
+*.db
+*.db-wal
+*.db-shm
+__pycache__/
+*.pyc
+# Personal data — never commit anything under profile/ except the samples placeholder
+profile/*
+!profile/samples/
+profile/samples/*
+!profile/samples/.gitkeep
+
+# build artifacts / caches
+job-agent.zip
+.pytest_cache/
+.claude/

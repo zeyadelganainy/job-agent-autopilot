@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+{% import "_macros.html" as ui %}
+{% block title %}Documents{% endblock %}
+{% block heading %}Documents{% endblock %}
+{% block content %}
+<form class="filters" method="get" action="/docs">
+  <input type="text" name="q" value="{{ f.q }}" placeholder="Search role or company">
+  <label class="inl">Created
+    <select name="since">
+      <option value="" {{ 'selected' if not f.since }}>any time</option>
+      <option value="1" {{ 'selected' if f.since == '1' }}>today</option>
+      <option value="7" {{ 'selected' if f.since == '7' }}>last 7 days</option>
+      <option value="30" {{ 'selected' if f.since == '30' }}>last 30 days</option>
+    </select>
+  </label>
+  <button class="btn">Search</button>
+  {% if f.q or f.since %}<a class="btn btn-ghost" href="/docs">Clear</a>{% endif %}
+</form>
+
+<div class="table-wrap">
+  {% if jobs %}
+    {% for j in jobs %}
+    <div class="docrow">
+      <div class="h">{{ j.title }} <span class="muted">— {{ j.company }}</span>
+        <span class="rowdate mono">{{ (j.created_at or '')[:10] }}</span></div>
+      <div class="files">
+        {% for d in j.doc_files %}<a class="file" href="/download?path={{ d.path | urlencode }}">↓ {{ d.name }}</a>{% endfor %}
+      </div>
+    </div>
+    {% endfor %}
+  {% else %}
+    <div class="empty">No documents match. Pick a job, or generate from a posting.</div>
+  {% endif %}
+</div>
+<div class="tablefoot">{{ ui.pager(pg, f) }}</div>
+{% endblock %}
