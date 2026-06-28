@@ -208,7 +208,8 @@ def _bullet(doc, text: str):
 
 # ------------------------------------------------------------- resume rendering
 def _contact_line(identity: dict) -> str:
-    parts = [identity.get(k) for k in ("location", "phone", "email", "github", "linkedin")]
+    parts = [identity.get(k) for k in
+             ("location", "phone", "email", "github", "linkedin", "website", "portfolio")]
     return "  |  ".join(p for p in parts if p)
 
 
@@ -216,7 +217,7 @@ def _render_contact(doc, identity: dict):
     """Centered contact paragraph; email/github/linkedin/portfolio are clickable."""
     # (key, is_link)
     fields = [("location", False), ("phone", False), ("email", True),
-              ("github", True), ("linkedin", True), ("portfolio", True)]
+              ("github", True), ("linkedin", True), ("website", True), ("portfolio", True)]
     parts = [(identity.get(k), is_link) for k, is_link in fields if identity.get(k)]
     if not parts:
         return None

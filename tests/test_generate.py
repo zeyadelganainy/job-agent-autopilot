@@ -19,6 +19,21 @@ def test_contact_line_skips_missing_fields():
     assert line == "Kelowna  |  e  |  gh"
 
 
+def test_contact_line_includes_website():
+    line = g._contact_line({"email": "e", "website": "zeyad.ca"})
+    assert line == "e  |  zeyad.ca"
+
+
+def test_render_contact_renders_website_as_link(tmp_path):
+    from docx import Document
+    from docx.opc.constants import RELATIONSHIP_TYPE as RT
+    d = Document()
+    g._clear_body(d)
+    g._render_contact(d, {"email": "e@x.com", "website": "zeyad.ca"})
+    links = [r._target for r in d.part.rels.values() if r.reltype == RT.HYPERLINK]
+    assert any("zeyad.ca" in t for t in links)
+
+
 def test_resume_to_md_structure():
     data = {"summary": "S", "skills": [{"label": "L", "items": "x"}],
             "experience": [{"role": "R", "org": "O", "dates": "D", "bullets": ["b1"]}]}
