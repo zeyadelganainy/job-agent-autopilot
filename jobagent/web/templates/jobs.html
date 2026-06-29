@@ -64,7 +64,8 @@
       <div class="actionbar" style="margin:0">
         <button class="btn btn-primary">Generate selected</button>
         <button class="btn btn-danger" formaction="/jobs/remove"
-                onclick="return confirm('Remove the selected postings from your board? A future scan won\'t bring them back.')">Remove selected</button>
+                data-confirm="Remove the selected postings from your board? A future scan won't bring them back."
+                data-confirm-ok="Remove">Remove selected</button>
         <span class="muted">tick rows, then generate or remove</span>
       </div>
       {{ ui.pager(pg, f) }}

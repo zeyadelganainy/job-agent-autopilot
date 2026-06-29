@@ -69,8 +69,8 @@
         <td class="notes">{{ a.notes }}</td>
         <td class="rowact">
           <a class="btn btn-sm" href="/tracker/{{ a.id }}/edit">Edit</a>
-          <form method="post" action="/tracker/{{ a.id }}/delete" onsubmit="return confirm('Delete this application?')">
-            <button class="btn btn-sm btn-danger">Delete</button>
+          <form method="post" action="/tracker/{{ a.id }}/delete">
+            <button class="btn btn-sm btn-danger" data-confirm="Delete this application? This can't be undone." data-confirm-ok="Delete">Delete</button>
           </form>
         </td>
       </tr>

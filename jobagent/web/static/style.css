@@ -277,3 +277,33 @@ textarea { resize: vertical; min-height: 200px; font-family: var(--mono); font-s
 .demo-cta { border-color: var(--amber); color: var(--amber); background: var(--amber-weak); }
 .demo-cta:hover { background: #fbe7c8; }
 .login-note { margin: 12px 0 0; color: var(--text-dim); font-size: 12.5px; line-height: 1.5; }
+
+/* ---- toasts ---- */
+.toast-wrap { position: fixed; right: 18px; bottom: 18px; z-index: 1000;
+  display: flex; flex-direction: column; gap: 10px; max-width: min(380px, calc(100vw - 36px)); }
+.toast { display: flex; align-items: flex-start; gap: 10px; background: var(--surface);
+  border: 1px solid var(--line); border-left: 3px solid var(--brand); border-radius: 10px;
+  box-shadow: var(--shadow-mod); padding: 12px 12px 12px 14px; color: var(--text);
+  font-size: 13.5px; line-height: 1.45; opacity: 0; transform: translateY(8px);
+  transition: opacity .22s ease, transform .22s ease; }
+.toast.in { opacity: 1; transform: translateY(0); }
+.toast.out { opacity: 0; transform: translateY(8px); }
+.toast-msg { flex: 1; }
+.toast-x { background: none; border: 0; cursor: pointer; color: var(--text-dim); font-size: 18px;
+  line-height: 1; padding: 0 2px; margin: -2px -2px 0 0; }
+.toast-x:hover { color: var(--text); }
+.toast-success { border-left-color: var(--hi); }
+.toast-warn    { border-left-color: var(--amber); }
+.toast-info    { border-left-color: var(--brand-3); }
+
+/* ---- confirm modal ---- */
+.modal-overlay { position: fixed; inset: 0; z-index: 1100; display: flex; align-items: center;
+  justify-content: center; padding: 20px; background: rgba(17,28,58,.45);
+  opacity: 0; transition: opacity .18s ease; }
+.modal-overlay.in { opacity: 1; }
+.modal-card { width: 420px; max-width: 100%; background: var(--surface); border: 1px solid var(--line);
+  border-radius: 14px; box-shadow: var(--shadow-mod); padding: 22px 22px 18px;
+  transform: translateY(8px) scale(.98); transition: transform .18s ease; }
+.modal-overlay.in .modal-card { transform: none; }
+.modal-msg { font-size: 15px; line-height: 1.5; color: var(--text); margin-bottom: 18px; }
+.modal-actions { display: flex; justify-content: flex-end; gap: 10px; }

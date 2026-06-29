@@ -27,7 +27,7 @@
         <td class="rowact">
           {% if j.docs and j.url %}<a class="btn btn-sm btn-primary" href="{{ j.url }}" target="_blank" rel="noopener">Apply ↗</a>{% endif %}
           <form method="post" action="/jobs/{{ j.job_id }}/retry"><button class="btn btn-sm">Retry</button></form>
-          <form method="post" action="/jobs/{{ j.job_id }}/dismiss" onsubmit="return confirm('Dismiss this job?')"><button class="btn btn-sm btn-danger">Dismiss</button></form>
+          <form method="post" action="/jobs/{{ j.job_id }}/dismiss"><button class="btn btn-sm btn-danger" data-confirm="Dismiss this job? It won't come back on a future scan." data-confirm-ok="Dismiss">Dismiss</button></form>
         </td>
       </tr>
       {% endfor %}
@@ -58,8 +58,8 @@
         <td class="rowact">
           <form method="post" action="/jobs/{{ j.job_id }}/apply" target="_blank" rel="noopener">
             <button class="btn btn-sm btn-primary">Apply ↗</button></form>
-          <form method="post" action="/jobs/{{ j.job_id }}/dismiss" onsubmit="return confirm('Dismiss this job?')">
-            <button class="btn btn-sm btn-danger">Dismiss</button></form>
+          <form method="post" action="/jobs/{{ j.job_id }}/dismiss">
+            <button class="btn btn-sm btn-danger" data-confirm="Dismiss this job? It won't come back on a future scan." data-confirm-ok="Dismiss">Dismiss</button></form>
         </td>
       </tr>
       {% endfor %}
