@@ -121,6 +121,16 @@ def _output_dir() -> Path:
     return (ROOT / load_config()["paths"]["output"])
 
 
+def _static_v() -> str:
+    """Cache-busting token for /static assets: the newest mtime among the static files.
+    Changes on every deploy so browsers fetch new CSS/JS instead of a stale cached copy."""
+    try:
+        mtimes = [p.stat().st_mtime for p in (HERE / "static").glob("*") if p.is_file()]
+        return str(int(max(mtimes))) if mtimes else "1"
+    except OSError:
+        return "1"
+
+
 def _notice_redirect(path: str, msg: str, status_code: int = 303) -> RedirectResponse:
     sep = "&" if "?" in path else "?"
     return RedirectResponse(f"{path}{sep}notice={quote(msg)}", status_code=status_code)
@@ -131,6 +141,7 @@ def render(request: Request, name: str, ctx: dict = None):
     ctx["request"] = request
     ctx.setdefault("session", getattr(request.state, "session", None))
     ctx.setdefault("notice", request.query_params.get("notice"))
+    ctx.setdefault("static_v", _static_v())
     nrt = next_run_time(getattr(app.state, "scheduler", None))
     ctx.setdefault("next_scan", webutil.human_until(nrt))           # no-JS fallback
     ctx.setdefault("next_scan_ts", int(nrt.timestamp() * 1000) if nrt else "")
@@ -200,7 +211,7 @@ def login_form(request: Request, error: str = None, next: str = "/"):
     if read_session(request.cookies.get(COOKIE)):
         return RedirectResponse("/", status_code=303)
     return templates.TemplateResponse(request, "login.html",
-                                      {"error": error, "next": next})
+                                      {"error": error, "next": next, "static_v": _static_v()})
 
 
 @app.post("/login")

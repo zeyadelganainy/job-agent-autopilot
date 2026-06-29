@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{% block title %}JobPilot{% endblock %} · JobPilot</title>
-  <link rel="stylesheet" href="/static/style.css">
+  <link rel="stylesheet" href="/static/style.css?v={{ static_v }}">
 </head>
 <body>
 {% set p = request.url.path %}
@@ -54,10 +54,10 @@
   </div>
 </div>
 
-<script src="/static/countdown.js"></script>
+<script src="/static/countdown.js?v={{ static_v }}"></script>
 {% if task %}
 <script>window.JOB_TASK = "{{ task }}";</script>
-<script src="/static/app.js"></script>
+<script src="/static/app.js?v={{ static_v }}"></script>
 {% endif %}
 </body>
 </html>
