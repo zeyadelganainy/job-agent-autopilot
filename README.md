@@ -56,12 +56,68 @@ not your laptop is on. Your résumé/profile and API keys stay in your own deplo
 - **Login + isolated recruiter demo** — a session-cookie login page (HTTP Basic is still accepted
   for scripts/tests); the demo runs entirely on premade data, intercepts every live action, and
   gives each visitor a private, freshly-seeded SQLite sandbox that never touches your real data.
-- **Themed, no-build UI** — FastAPI + Jinja + a little vanilla JS / Chart.js; a dark-by-default
-  design system with a persisted light-mode toggle, plus custom toast notifications and confirm
-  dialogs (no native browser prompts). SQLite for state.
 - **Always-on for $0** — deploy assets for an Oracle Cloud Always Free VM (systemd + Caddy HTTPS),
   with Python provided by [`uv`](https://docs.astral.sh/uv/) so it works even on older distros.
+- **Responsive, themed, no-build UI** — FastAPI + Jinja + a little vanilla JS / Chart.js; a
+  dark-by-default design system with a persisted light-mode toggle, a mobile hamburger-drawer nav,
+  and custom toast / confirm dialogs (no native browser prompts). SQLite for state.
 - **Config-driven & tested** — everything in `config.yaml`; hermetic `pytest` suite (100+ tests) in CI.
+
+---
+
+## Architecture
+
+```mermaid
+flowchart TB
+    subgraph sources["Job sources"]
+        ATS["ATS feeds — Greenhouse · Lever · Ashby<br/>(public JSON · primary)"]
+        BOARDS["Job boards via JobSpy<br/>(ToS-grey · optional)"]
+    end
+
+    RUNNER["ingest/runner.py<br/>gather · filter · blocklist · dedupe"]
+
+    subgraph core["Pipeline — jobagent/pipeline.py"]
+        SCAN["scan()"]
+        SCORE["score.py — LLM<br/>0–100 + reasons / gaps"]
+        AGENT["agent_run()<br/>auto-select score ≥ min_score<br/>cap daily_cap"]
+        GEN["generate.py<br/>tailored résumé + cover letter"]
+    end
+
+    LLM["llm.py · chat()<br/>Claude primary · Gemini fallback (BYOK)"]
+    DB[("store.py — SQLite<br/>jobs · agent_runs · applications")]
+    EMAIL["notify.py<br/>email digest (SMTP, BYOK)"]
+    USER(["You — review &amp; APPLY manually"])
+
+    subgraph entry["Entry points"]
+        WEB["run_web.py<br/>FastAPI console + scheduler"]
+        CLI["run_agent.py<br/>one-off cron run"]
+        SCHED["scheduler.py<br/>daily @ schedule.time / timezone"]
+    end
+
+    ATS --> RUNNER
+    BOARDS --> RUNNER
+    RUNNER --> SCAN --> SCORE --> AGENT --> GEN
+    SCORE -.-> LLM
+    GEN -.-> LLM
+    AGENT -- "can't finish → triage queue" --> DB
+    SCAN --> DB
+    GEN --> DB
+    CLI --> AGENT
+    SCHED --> AGENT
+    WEB --> SCAN
+    WEB --> SCHED
+    AGENT --> EMAIL --> USER
+    DB --> WEB --> USER
+    USER -- "Apply = record + open posting (never submits)" --> DB
+```
+
+**The loop:** sources → `ingest/runner` gathers, filters and dedupes → `pipeline.scan` persists new
+jobs → `score.py` rates each against your profile via `llm.chat` → `agent_run` auto-selects matches
+at/above `min_score` (capped by `daily_cap`) and calls `generate.py` for a tailored résumé + cover
+letter → `notify.py` emails the digest. Anything the agent can't finish (LLM quota/API error or a
+manual portal) is flagged into the **triage queue** instead of being dropped. The web console and the
+daily scheduler both live in `run_web.py`; `run_agent.py` is the cron-friendly one-off. **You** always
+perform the final apply.
 
 ---
 

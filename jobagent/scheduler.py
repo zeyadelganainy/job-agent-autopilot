@@ -60,8 +60,11 @@ def start_scheduler(cfg=None):
 
     hh, mm = (str(sc.get("time", "08:00")).split(":") + ["0"])[:2]
     scheduler = BackgroundScheduler(timezone=tz) if tz else BackgroundScheduler()
-    scheduler.add_job(_daily_run, CronTrigger(hour=int(hh), minute=int(mm)),
-                      id="daily_run", replace_existing=True)
+    # Pin the trigger to the configured tz. A pre-built CronTrigger ignores the
+    # scheduler's default timezone and falls back to the machine's local zone, so
+    # on a UTC VM "08:00" would otherwise fire at 08:00 UTC (= 1 AM Vancouver).
+    trigger = CronTrigger(hour=int(hh), minute=int(mm), timezone=tz)
+    scheduler.add_job(_daily_run, trigger, id="daily_run", replace_existing=True)
     scheduler.start()
     print(f"[scheduler] daily run scheduled at {hh}:{mm} {sc.get('timezone') or 'UTC'}")
     return scheduler
