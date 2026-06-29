@@ -3,14 +3,14 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>{% block title %}job-agent{% endblock %} · job-agent</title>
+  <title>{% block title %}JobPilot{% endblock %} · JobPilot</title>
   <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
 {% set p = request.url.path %}
 <div class="app">
   <aside class="sidebar">
-    <div class="brand"><span class="dot"></span> job-agent</div>
+    <div class="brand"><span class="dot"></span> JobPilot</div>
     <nav>
       <a class="navitem {{ 'active' if p == '/' }}" href="/">
         <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="1.5" y="1.5" width="5" height="5" rx="1"/><rect x="9" y="1.5" width="5" height="5" rx="1"/><rect x="1.5" y="9" width="5" height="5" rx="1"/><rect x="9" y="9" width="5" height="5" rx="1"/></svg>
@@ -35,17 +35,22 @@
         <span>Settings</span></a>
     </nav>
     <div class="sidebar-foot">
+      {% if session and session.role == 'demo' %}<div class="demo-badge">DEMO MODE</div>{% endif %}
       <div class="meta">Next run <span id="next-scan" data-next="{{ next_scan_ts }}">{{ next_scan }}</span></div>
       <form method="post" action="/agent/run"><button class="btn btn-block">Run agent now</button></form>
+      <a class="signout" href="/logout">{% if session and session.role == 'demo' %}Exit demo{% else %}Sign out{% endif %}</a>
     </div>
   </aside>
 
   <div class="content">
     <header class="topbar">
-      <h1>{% block heading %}job-agent{% endblock %}</h1>
+      <h1>{% block heading %}JobPilot{% endblock %}</h1>
       <div class="actions">{% block actions %}{% endblock %}</div>
     </header>
-    <main>{% block content %}{% endblock %}</main>
+    <main>
+      {% if notice %}<div class="banner banner-warn" id="notice-banner">{{ notice }}</div>{% endif %}
+      {% block content %}{% endblock %}
+    </main>
   </div>
 </div>
 

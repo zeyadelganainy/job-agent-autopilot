@@ -229,7 +229,7 @@ def agent_run(cfg=None) -> dict:
 def format_email(summary: dict) -> str:
     """Build the HTML run digest emailed after each agent run."""
     g, a = summary.get("generated", []), summary.get("attention", [])
-    parts = ["<h2 style='margin:0 0 4px'>job-agent — daily run</h2>",
+    parts = ["<h2 style='margin:0 0 4px'>JobPilot — daily run</h2>",
              f"<p style='color:#555'>Scanned {summary.get('scanned', 0)} · "
              f"matched {summary.get('matched', 0)} · prepared {len(g)} · "
              f"needs attention {len(a)}</p>"]

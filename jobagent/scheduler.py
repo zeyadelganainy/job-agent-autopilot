@@ -29,15 +29,15 @@ def _daily_run():
     try:
         if agent_on:
             summary = agent_run(cfg)
-            send_email("job-agent — daily run", format_email(summary))
+            send_email("JobPilot — daily run", format_email(summary))
         else:                                  # agent disabled → scan-only digest
             scan(cfg)
-            send_email("job-agent — new matches", format_digest(pending(cfg)))
+            send_email("JobPilot — new matches", format_digest(pending(cfg)))
         print("[scheduler] run complete; digest emailed")
     except Exception as e:
         print(f"[scheduler] run failed: {e}")
         try:
-            send_email("job-agent — run failed", f"<p>The scheduled run failed:</p><p>{e}</p>")
+            send_email("JobPilot — run failed", f"<p>The scheduled run failed:</p><p>{e}</p>")
         except Exception:
             pass
 

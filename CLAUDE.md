@@ -64,6 +64,13 @@ application. A scheduled daily run does the whole cycle; "Run agent now" trigger
 - Email-only digest (`notify.send_email` + `pipeline.format_email`); Telegram removed.
 - Web console: agent dashboard, Apply (records + opens posting), Insights agent-activity chart.
 - Oracle Cloud Always Free deploy assets under `deploy/`.
+- Auth: `/login` page (signed session cookie; HTTP Basic still accepted for scripts/tests),
+  `/logout`. Cookie signed via stdlib HMAC with `SESSION_SECRET` (falls back to `WEB_PASSWORD`).
+- **Demo mode** (`jobagent/web/demo.py`): "View the demo" on /login opens a no-live-calls
+  sandbox — its own seeded `demo.db` + premade `.docx` under `output/demo`. Routes that would
+  make live calls (agent run, pick/generate, settings write) are intercepted and *simulated*:
+  first "Run agent now" adds 2 matches + prepares docs; pressing it again returns a demo notice.
+  Reseeded fresh on each demo entry. Never touches the real `jobs.db` or `config.yaml`.
 
 ## Known TODOs (backlog)
 - Response/interview-rate analytics; time-to-response; per-company outcomes.

@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Sign in · JobPilot</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body class="login-body">
+  <div class="login-card">
+    <div class="login-brand"><span class="dot"></span> JobPilot</div>
+    <p class="login-sub">Autonomous job-application prep agent</p>
+
+    {% if error %}<div class="banner banner-error" style="margin:0 0 16px">Wrong username or password.</div>{% endif %}
+
+    <form method="post" action="/login" class="login-form">
+      <input type="hidden" name="next" value="{{ next }}">
+      <div class="field">
+        <label>Username</label>
+        <input type="text" name="username" autocomplete="username" autofocus>
+      </div>
+      <div class="field">
+        <label>Password</label>
+        <input type="password" name="password" autocomplete="current-password">
+      </div>
+      <button class="btn btn-primary btn-block btn-lg" type="submit">Sign in</button>
+    </form>
+
+    <div class="login-or"><span>or</span></div>
+
+    <form method="post" action="/demo">
+      <button class="btn btn-block btn-lg demo-cta" type="submit">▶ View the demo</button>
+    </form>
+    <p class="login-note">A guided sandbox with sample data — no live API calls are made.
+      Recruiters: start here.</p>
+  </div>
+</body>
+</html>

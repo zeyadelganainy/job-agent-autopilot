@@ -3,8 +3,14 @@
 The dashboard surfaces the agent's work: today's stats, a "Ready to apply" queue, a
 triage "Needs attention" queue, and recent run history. It also keeps manual tools
 (jobs, ad-hoc generation, docs library, editable tracker, insights, settings).
-Password-protected (HTTP Basic); Swagger disabled so /docs is the document library.
+Password-protected via a /login page (session cookie); HTTP Basic is also accepted so
+scripts/tests can authenticate. A "View demo" button opens a no-live-calls sandbox for
+recruiters (see jobagent/web/demo.py). Swagger disabled so /docs is the document library.
 """
+import base64
+import binascii
+import hashlib
+import hmac
 import json
 import secrets
 import threading
@@ -13,6 +19,7 @@ import uuid
 from collections import Counter
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
+from urllib.parse import quote
 
 from fastapi import Depends, FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, RedirectResponse
@@ -24,35 +31,106 @@ from .. import notify, pipeline, settings_io, tracker, webutil
 from ..config import ROOT, env, load_config
 from ..scheduler import next_run_time, start_scheduler
 from ..store import Store
+from . import demo as demoer
 
 HERE = Path(__file__).resolve().parent
 templates = Jinja2Templates(directory=str(HERE / "templates"))
 
-app = FastAPI(title="job-agent", docs_url=None, redoc_url=None, openapi_url=None)
+app = FastAPI(title="JobPilot", docs_url=None, redoc_url=None, openapi_url=None)
 app.mount("/static", StaticFiles(directory=str(HERE / "static")), name="static")
-security = HTTPBasic()
+security = HTTPBasic(auto_error=False)         # we combine it with the session cookie below
 
 UTC_MIN = datetime.min.replace(tzinfo=timezone.utc)
+COOKIE = "ja_session"
+SESSION_TTL = 7 * 24 * 3600
 
 
-def require_auth(creds: HTTPBasicCredentials = Depends(security)) -> bool:
+class LoginRequired(Exception):
+    """Raised when a browser request has no valid session — redirected to /login."""
+
+
+# ---- session cookie (signed, stdlib only — no new dependency) ----
+def _secret() -> bytes:
+    return (env("SESSION_SECRET") or env("WEB_PASSWORD") or "dev-secret").encode()
+
+
+def make_session(role: str, ttl: int = SESSION_TTL) -> str:
+    body = base64.urlsafe_b64encode(
+        json.dumps({"role": role, "exp": int(time.time()) + ttl}).encode()).decode()
+    sig = hmac.new(_secret(), body.encode(), hashlib.sha256).hexdigest()
+    return f"{body}.{sig}"
+
+
+def read_session(token: str | None) -> dict | None:
+    if not token or "." not in token:
+        return None
+    body, _, sig = token.rpartition(".")
+    good = hmac.new(_secret(), body.encode(), hashlib.sha256).hexdigest()
+    if not hmac.compare_digest(sig, good):
+        return None
+    try:
+        data = json.loads(base64.urlsafe_b64decode(body.encode()))
+    except (ValueError, binascii.Error):
+        return None
+    if data.get("exp", 0) < time.time():
+        return None
+    return data
+
+
+def _check_basic(creds: HTTPBasicCredentials | None) -> bool:
     user, pw = env("WEB_USERNAME") or "admin", env("WEB_PASSWORD")
     if not pw:
         raise HTTPException(status_code=500, detail="Set WEB_PASSWORD in .env to use the UI.")
-    ok = secrets.compare_digest(creds.username, user) and secrets.compare_digest(creds.password, pw)
-    if not ok:
-        raise HTTPException(status_code=401, detail="Unauthorized",
-                            headers={"WWW-Authenticate": "Basic"})
-    return True
+    if creds is None:
+        return False
+    return (secrets.compare_digest(creds.username, user)
+            and secrets.compare_digest(creds.password, pw))
 
 
-def _store() -> Store:
+def require_auth(request: Request,
+                 creds: HTTPBasicCredentials = Depends(security)) -> dict:
+    """Return the session dict ({"role": "user"|"demo"}). Accepts a signed session
+    cookie or HTTP Basic; otherwise redirects a browser to /login (or 401s a failed
+    Basic attempt)."""
+    sess = read_session(request.cookies.get(COOKIE))
+    if not sess:
+        if creds is not None:
+            if _check_basic(creds):
+                sess = {"role": "user"}
+            else:
+                raise HTTPException(status_code=401, detail="Unauthorized",
+                                    headers={"WWW-Authenticate": "Basic"})
+        else:
+            raise LoginRequired()
+    request.state.session = sess
+    return sess
+
+
+@app.exception_handler(LoginRequired)
+def _login_redirect(request: Request, exc: LoginRequired):
+    return RedirectResponse("/login", status_code=303)
+
+
+def _store(sess: dict = None) -> Store:
+    if demoer.is_demo(sess):
+        return Store(demoer.DEMO_DB)
     return Store(load_config()["paths"]["db"])
+
+
+def _output_dir() -> Path:
+    return (ROOT / load_config()["paths"]["output"])
+
+
+def _notice_redirect(path: str, msg: str, status_code: int = 303) -> RedirectResponse:
+    sep = "&" if "?" in path else "?"
+    return RedirectResponse(f"{path}{sep}notice={quote(msg)}", status_code=status_code)
 
 
 def render(request: Request, name: str, ctx: dict = None):
     ctx = dict(ctx or {})
     ctx["request"] = request
+    ctx.setdefault("session", getattr(request.state, "session", None))
+    ctx.setdefault("notice", request.query_params.get("notice"))
     nrt = next_run_time(getattr(app.state, "scheduler", None))
     ctx.setdefault("next_scan", webutil.human_until(nrt))           # no-JS fallback
     ctx.setdefault("next_scan_ts", int(nrt.timestamp() * 1000) if nrt else "")
@@ -116,6 +194,44 @@ def _startup():
     app.state.scheduler = start_scheduler()
 
 
+# ---- auth pages (login / demo / logout) ----
+@app.get("/login", response_class=HTMLResponse)
+def login_form(request: Request, error: str = None, next: str = "/"):
+    if read_session(request.cookies.get(COOKIE)):
+        return RedirectResponse("/", status_code=303)
+    return templates.TemplateResponse(request, "login.html",
+                                      {"error": error, "next": next})
+
+
+@app.post("/login")
+def login_submit(request: Request, username: str = Form(""), password: str = Form(""),
+                 next: str = Form("/")):
+    creds = HTTPBasicCredentials(username=username, password=password)
+    if not _check_basic(creds):
+        return RedirectResponse("/login?error=1", status_code=303)
+    resp = RedirectResponse(next or "/", status_code=303)
+    resp.set_cookie(COOKIE, make_session("user"), httponly=True, samesite="lax",
+                    max_age=SESSION_TTL)
+    return resp
+
+
+@app.post("/demo")
+def enter_demo():
+    """Reset + seed the sandbox, then drop the visitor into a demo session."""
+    demoer.reset_and_seed(_output_dir())
+    resp = _notice_redirect("/", demoer.DEMO_NOTICE)
+    resp.set_cookie(COOKIE, make_session("demo"), httponly=True, samesite="lax",
+                    max_age=SESSION_TTL)
+    return resp
+
+
+@app.get("/logout")
+def logout():
+    resp = RedirectResponse("/login", status_code=303)
+    resp.delete_cookie(COOKIE)
+    return resp
+
+
 @app.get("/tasks/{tid}")
 def task_status(tid: str, _=Depends(require_auth)):
     t = dict(TASKS.get(tid, {"status": "unknown"}))
@@ -127,8 +243,8 @@ def task_status(tid: str, _=Depends(require_auth)):
 
 # ---- dashboard (agent home) ----
 @app.get("/", response_class=HTMLResponse)
-def dashboard(request: Request, task: str = None, _=Depends(require_auth)):
-    s = _store()
+def dashboard(request: Request, task: str = None, sess=Depends(require_auth)):
+    s = _store(sess)
     try:
         stats = s.today_stats()
         ready = [dict(r) for r in s.ready_to_apply()]
@@ -146,12 +262,20 @@ def dashboard(request: Request, task: str = None, _=Depends(require_auth)):
 
 
 @app.post("/agent/run")
-def do_agent_run(_=Depends(require_auth)):
+def do_agent_run(sess=Depends(require_auth)):
     """Run one autonomous cycle in the background, then email the digest."""
+    if demoer.is_demo(sess):
+        s = _store(sess)
+        try:
+            msg = demoer.run_scan(s, _output_dir())
+        finally:
+            s.close()
+        return _notice_redirect("/", msg)
+
     def work():
         summary = pipeline.agent_run(load_config())
         try:
-            notify.send_email("job-agent — manual run", pipeline.format_email(summary))
+            notify.send_email("JobPilot — manual run", pipeline.format_email(summary))
         except Exception as e:
             print(f"[web] run email failed: {e}")
         return {"generated": len(summary["generated"]),
@@ -165,8 +289,8 @@ def do_agent_run(_=Depends(require_auth)):
 @app.get("/jobs", response_class=HTMLResponse)
 def jobs_page(request: Request, company: str = "", location: str = "", min_score: str = "",
               max_age: str = "", sort: str = "match", dir: str = "desc",
-              page: int = 1, task: str = None, _=Depends(require_auth)):
-    s = _store()
+              page: int = 1, task: str = None, sess=Depends(require_auth)):
+    s = _store(sess)
     try:
         rows = [dict(r) for r in s.by_status("sent")]
     finally:
@@ -197,20 +321,27 @@ def jobs_page(request: Request, company: str = "", location: str = "", min_score
 
 
 @app.post("/pick")
-def do_pick(job_ids: list[str] = Form(default=[]), _=Depends(require_auth)):
+def do_pick(job_ids: list[str] = Form(default=[]), sess=Depends(require_auth)):
     if not job_ids:
         return RedirectResponse("/jobs", status_code=303)
+    if demoer.is_demo(sess):
+        s = _store(sess)
+        try:
+            msg = demoer.simulate_generate(s, _output_dir(), job_ids)
+        finally:
+            s.close()
+        return _notice_redirect("/", msg)
     tid = start_task("pick",
         lambda: [r["job_id"] for r, _ in pipeline.pick_and_generate(job_ids, load_config())])
     return RedirectResponse(f"/jobs?task={tid}", status_code=303)
 
 
 @app.post("/jobs/remove")
-def jobs_remove(job_ids: list[str] = Form(default=[]), _=Depends(require_auth)):
+def jobs_remove(job_ids: list[str] = Form(default=[]), sess=Depends(require_auth)):
     """Dismiss postings: mark 'skipped' so they leave the board and a re-scan
     won't bring them back (the job_id is already known)."""
     if job_ids:
-        s = _store()
+        s = _store(sess)
         try:
             for jid in job_ids:
                 s.set_status(jid, "skipped")
@@ -221,9 +352,9 @@ def jobs_remove(job_ids: list[str] = Form(default=[]), _=Depends(require_auth)):
 
 # ---- autopilot actions (apply / retry / dismiss) ----
 @app.post("/jobs/{job_id}/apply")
-def job_apply(job_id: str, _=Depends(require_auth)):
+def job_apply(job_id: str, sess=Depends(require_auth)):
     """Record that *you* applied (never auto-submits) and open the posting to finish."""
-    s = _store()
+    s = _store(sess)
     try:
         row = s.get(job_id)
         url = (row["url"] if row else "") or ""
@@ -232,16 +363,16 @@ def job_apply(job_id: str, _=Depends(require_auth)):
             s.add_application({
                 "role": row["title"], "company": row["company"],
                 "applied_date": datetime.now().strftime("%Y-%m-%d"), "stage": "Applied",
-                "location": row["location"], "notes": "via job-agent", "url": url})
+                "location": row["location"], "notes": "via JobPilot", "url": url})
     finally:
         s.close()
     return RedirectResponse(url or "/", status_code=303)
 
 
 @app.post("/jobs/{job_id}/retry")
-def job_retry(job_id: str, _=Depends(require_auth)):
+def job_retry(job_id: str, sess=Depends(require_auth)):
     """Clear a triage flag so the job is eligible again (e.g. once an API limit resets)."""
-    s = _store()
+    s = _store(sess)
     try:
         s.retry_job(job_id)
     finally:
@@ -250,8 +381,8 @@ def job_retry(job_id: str, _=Depends(require_auth)):
 
 
 @app.post("/jobs/{job_id}/dismiss")
-def job_dismiss(job_id: str, _=Depends(require_auth)):
-    s = _store()
+def job_dismiss(job_id: str, sess=Depends(require_auth)):
+    s = _store(sess)
     try:
         s.set_status(job_id, "skipped")
     finally:
@@ -267,7 +398,14 @@ def generate_form(request: Request, _=Depends(require_auth)):
 
 @app.post("/generate", response_class=HTMLResponse)
 def do_generate(request: Request, source: str = Form(...), title: str = Form(None),
-                company: str = Form(None), _=Depends(require_auth)):
+                company: str = Form(None), sess=Depends(require_auth)):
+    if demoer.is_demo(sess):
+        s = _store(sess)
+        try:
+            result = demoer.simulate_adhoc(s, _output_dir(), title, company)
+        finally:
+            s.close()
+        return render(request, "generate.html", {"result": result})
     try:
         row, paths = pipeline.generate_for_jd(source, load_config(),
                                               title=title or None, company=company or None)
@@ -281,8 +419,8 @@ def do_generate(request: Request, source: str = Form(...), title: str = Form(Non
 # ---- docs (search / paginate) ----
 @app.get("/docs", response_class=HTMLResponse)
 def docs_library(request: Request, q: str = "", since: str = "", page: int = 1,
-                 _=Depends(require_auth)):
-    s = _store()
+                 sess=Depends(require_auth)):
+    s = _store(sess)
     try:
         rows = [dict(r) for r in s.all_docs()]
     finally:
@@ -320,8 +458,8 @@ def download(path: str, _=Depends(require_auth)):
 
 # ---- insights (analytics) ----
 @app.get("/insights", response_class=HTMLResponse)
-def insights_page(request: Request, _=Depends(require_auth)):
-    s = _store()
+def insights_page(request: Request, sess=Depends(require_auth)):
+    s = _store(sess)
     try:
         apps = [dict(r) for r in s.list_applications()]
         prepared_rows = [dict(r) for r in s.all_docs()]            # agent-prepared (have docs)
@@ -364,9 +502,9 @@ def insights_page(request: Request, _=Depends(require_auth)):
 @app.get("/tracker", response_class=HTMLResponse)
 def tracker_page(request: Request, stage: str = "", company: str = "",
                  sort: str = "applied", dir: str = "desc", page: int = 1,
-                 summary: str = None, _=Depends(require_auth)):
+                 summary: str = None, sess=Depends(require_auth)):
     tcfg = load_config().get("tracker") or {}
-    s = _store()
+    s = _store(sess)
     try:
         if tcfg.get("auto_ghost"):
             tracker.auto_ghost(s, tcfg.get("ghost_after_weeks", 4))
@@ -396,9 +534,10 @@ def tracker_page(request: Request, stage: str = "", company: str = "",
 
 
 @app.post("/tracker/import", response_class=HTMLResponse)
-async def tracker_import(request: Request, file: UploadFile = File(...), _=Depends(require_auth)):
+async def tracker_import(request: Request, file: UploadFile = File(...),
+                         sess=Depends(require_auth)):
     content = (await file.read()).decode("utf-8-sig", errors="replace")
-    s = _store()
+    s = _store(sess)
     try:
         summ = tracker.import_csv(content, s)
     finally:
@@ -416,9 +555,9 @@ def _app_fields(role, company, applied_date, stage, location, notes) -> dict:
 @app.post("/tracker/add")
 def tracker_add(role: str = Form(""), company: str = Form(""), applied_date: str = Form(""),
                 stage: str = Form(""), location: str = Form(""), notes: str = Form(""),
-                _=Depends(require_auth)):
+                sess=Depends(require_auth)):
     if company or role:
-        s = _store()
+        s = _store(sess)
         try:
             s.add_application(_app_fields(role, company, applied_date, stage, location, notes))
         finally:
@@ -427,8 +566,8 @@ def tracker_add(role: str = Form(""), company: str = Form(""), applied_date: str
 
 
 @app.get("/tracker/{app_id}/edit", response_class=HTMLResponse)
-def tracker_edit_form(request: Request, app_id: int, _=Depends(require_auth)):
-    s = _store()
+def tracker_edit_form(request: Request, app_id: int, sess=Depends(require_auth)):
+    s = _store(sess)
     try:
         row = s.get_application(app_id)
     finally:
@@ -441,8 +580,9 @@ def tracker_edit_form(request: Request, app_id: int, _=Depends(require_auth)):
 @app.post("/tracker/{app_id}/edit")
 def tracker_edit_save(app_id: int, role: str = Form(""), company: str = Form(""),
                       applied_date: str = Form(""), stage: str = Form(""),
-                      location: str = Form(""), notes: str = Form(""), _=Depends(require_auth)):
-    s = _store()
+                      location: str = Form(""), notes: str = Form(""),
+                      sess=Depends(require_auth)):
+    s = _store(sess)
     try:
         s.update_application(app_id, _app_fields(role, company, applied_date, stage, location, notes))
     finally:
@@ -451,8 +591,8 @@ def tracker_edit_save(app_id: int, role: str = Form(""), company: str = Form("")
 
 
 @app.post("/tracker/{app_id}/delete")
-def tracker_delete(app_id: int, _=Depends(require_auth)):
-    s = _store()
+def tracker_delete(app_id: int, sess=Depends(require_auth)):
+    s = _store(sess)
     try:
         s.delete_application(app_id)
     finally:
@@ -462,7 +602,7 @@ def tracker_delete(app_id: int, _=Depends(require_auth)):
 
 # ---- settings (edit config.yaml) ----
 @app.get("/settings", response_class=HTMLResponse)
-def settings_page(request: Request, saved: str = None, _=Depends(require_auth)):
+def settings_page(request: Request, saved: str = None, sess=Depends(require_auth)):
     return render(request, "settings.html",
                   {"s": settings_io.read(), "saved": saved,
                    "email_ok": notify.email_configured()})
@@ -477,8 +617,11 @@ def settings_save(
     agent_enabled: str = Form(None), min_score: str = Form(""), daily_cap: str = Form(""),
     auto_ghost: str = Form(None), ghost_after_weeks: str = Form(""),
     claude: str = Form(""), gemini: str = Form(""), schedule_enabled: str = Form(None),
-    schedule_time: str = Form(""), schedule_timezone: str = Form(""), _=Depends(require_auth),
+    schedule_time: str = Form(""), schedule_timezone: str = Form(""),
+    sess=Depends(require_auth),
 ):
+    if demoer.is_demo(sess):
+        return _notice_redirect("/settings", "Demo mode — settings are read-only here.")
     settings_io.write({
         "keywords": _lines(keywords), "locations": _lines(locations),
         "block_companies": _lines(block_companies),

@@ -15,5 +15,6 @@ if __name__ == "__main__":
     shown = "localhost" if host in ("0.0.0.0", "::") else host
     print(f"\n  job-agent web UI → open http://{shown}:{port}"
           f"   (on this machine; from another device use this PC's LAN IP)")
-    print("  log in with WEB_USERNAME / WEB_PASSWORD from your .env\n")
+    print("  log in with WEB_USERNAME / WEB_PASSWORD from your .env,")
+    print("  or click “View the demo” for a no-live-calls sandbox.\n")
     uvicorn.run("jobagent.web.app:app", host=host, port=port)

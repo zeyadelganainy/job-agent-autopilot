@@ -26,6 +26,7 @@
 {% if result %}
 <div class="result" style="max-width:780px">
   {% if result.ok %}
+  {% if result.demo %}<div class="banner banner-warn" style="max-width:780px">Demo mode — these are premade sample documents. No live LLM call was made.</div>{% endif %}
   <div class="panel">
     <div class="panel-h"><h2>Generated · {{ result.job.title }} — {{ result.job.company }}</h2></div>
     <div class="panel-b">

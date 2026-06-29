@@ -23,6 +23,8 @@ def client(monkeypatch, tmp_path):
         return cfg
 
     monkeypatch.setattr(webapp, "load_config", fake_load)
+    # isolate the demo sandbox DB into the tmp dir (default lives at the repo root)
+    monkeypatch.setattr(webapp.demoer, "DEMO_DB", str(tmp_path / "demo.db"))
     from fastapi.testclient import TestClient
     return TestClient(webapp.app)
 
@@ -33,7 +35,27 @@ def _auth(u="admin", p="secret"):
 
 
 def test_requires_auth(client):
-    assert client.get("/").status_code == 401
+    r = client.get("/", follow_redirects=False)
+    assert r.status_code == 303 and r.headers["location"] == "/login"
+
+
+def test_login_page_public(client):
+    r = client.get("/login")
+    assert r.status_code == 200 and "View the demo" in r.text
+
+
+def test_login_grants_cookie_session(client):
+    r = client.post("/login", data={"username": "admin", "password": "secret"},
+                    follow_redirects=False)
+    assert r.status_code == 303 and "ja_session" in r.headers.get("set-cookie", "")
+    # the cookie now authenticates without a Basic header
+    assert client.get("/").status_code == 200
+
+
+def test_login_bad_password_redirects_with_error(client):
+    r = client.post("/login", data={"username": "admin", "password": "nope"},
+                    follow_redirects=False)
+    assert r.status_code == 303 and r.headers["location"] == "/login?error=1"
 
 
 def test_dashboard_ok_with_auth(client):
@@ -102,3 +124,41 @@ def test_jobs_remove_dismisses(client):
     assert "Unwanted Role" in client.get("/jobs", headers=_auth()).text
     client.post("/jobs/remove", data={"job_ids": [j.job_id]}, headers=_auth())
     assert "Unwanted Role" not in client.get("/jobs", headers=_auth()).text
+
+
+# ---- demo mode -------------------------------------------------------------
+def test_demo_seeds_and_is_isolated_from_real_db(client):
+    r = client.post("/demo", follow_redirects=False)
+    assert r.status_code == 303 and "ja_session" in r.headers.get("set-cookie", "")
+    # demo cookie now authenticates; the board shows the 3 seeded jobs + the demo badge
+    assert "DEMO MODE" in client.get("/").text            # badge in the sidebar
+    assert "Stripe" in client.get("/jobs").text           # seeded board job
+    # the real DB is untouched (no demo jobs leaked into it)
+    import jobagent.web.app as webapp
+    s = webapp._store()
+    assert not any(j["company"] == "Stripe" for j in s.by_status("sent"))
+    s.close()
+
+
+def test_demo_scan_adds_two_then_notices(client):
+    from urllib.parse import unquote
+    client.post("/demo")
+    assert "Figma" not in client.get("/").text            # not added yet
+    # first run adds 2 matches + prepares docs (no live calls)
+    r1 = client.post("/agent/run", follow_redirects=False)
+    assert r1.status_code == 303 and "Demo run complete" in unquote(r1.headers["location"])
+    # the two new matches show up — Figma got docs (Ready to apply), 1Password on the board
+    assert "Figma" in client.get("/").text
+    assert "1Password" in client.get("/jobs").text
+    # second run just tells the user it's a demo (no new work)
+    r2 = client.post("/agent/run", follow_redirects=False)
+    assert "simulation" in unquote(r2.headers["location"])
+
+
+def test_demo_settings_are_read_only(client, monkeypatch):
+    import jobagent.web.app as webapp
+    called = {"n": 0}
+    monkeypatch.setattr(webapp.settings_io, "write", lambda *a, **k: called.__setitem__("n", 1))
+    client.post("/demo")
+    r = client.post("/settings", data={"keywords": "x"}, follow_redirects=False)
+    assert r.status_code == 303 and called["n"] == 0      # never wrote real config

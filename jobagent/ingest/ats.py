@@ -11,7 +11,7 @@ import requests
 from ..models import Job
 
 TIMEOUT = 20
-HEADERS = {"User-Agent": "job-agent/1.0 (personal use)"}
+HEADERS = {"User-Agent": "JobPilot/1.0 (personal use)"}
 
 
 def _clean(html: str) -> str:

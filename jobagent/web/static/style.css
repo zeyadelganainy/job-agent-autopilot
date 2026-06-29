@@ -1,6 +1,6 @@
 @import url('https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600&family=Fira+Sans:wght@400;500;600;700&display=swap');
 
-/* job-agent — professional job-tracker SaaS UI
+/* JobPilot — professional job-tracker SaaS UI
    Swiss-minimal · blue primary + amber highlights · Fira Sans/Code · navy sidebar
    Signature motif: the match-score signal (banded pill + meter). */
 
@@ -162,7 +162,7 @@ td.num, th.num { white-space: nowrap; }
 /* ---- forms ---- */
 .field { display: block; margin-bottom: 14px; }
 .field > label { display: block; font-size: 13px; font-weight: 600; margin-bottom: 6px; }
-input[type=text], input:not([type]), textarea, select {
+input[type=text], input[type=password], input:not([type]), textarea, select {
   font: inherit; width: 100%; padding: 9px 11px; border: 1px solid var(--line);
   border-radius: 8px; background: var(--surface); color: var(--text); }
 input:hover, textarea:hover, select:hover { border-color: #c9d4e6; }
@@ -250,3 +250,30 @@ textarea { resize: vertical; min-height: 200px; font-family: var(--mono); font-s
   .filters input[type=text] { width: 100%; }
 }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
+
+/* ---- auth: demo badge, sign-out, login page ---- */
+.demo-badge { font: 600 10.5px/1 var(--mono); letter-spacing: .12em; text-align: center;
+  background: var(--amber-weak); color: var(--amber); border: 1px solid #e7cf94;
+  padding: 5px 0; border-radius: 6px; }
+.signout { display: block; text-align: center; font-size: 12.5px; color: var(--nav-dim);
+  padding: 2px 0; }
+.signout:hover { color: #fff; text-decoration: none; }
+
+.login-body { display: flex; align-items: center; justify-content: center; min-height: 100vh;
+  background: radial-gradient(1200px 600px at 50% -10%, #1b2a52 0%, var(--nav) 55%); }
+.login-card { width: 360px; max-width: calc(100vw - 32px); background: var(--surface);
+  border: 1px solid var(--line); border-radius: 14px; box-shadow: var(--shadow-mod);
+  padding: 30px 28px; }
+.login-brand { display: flex; align-items: center; gap: 9px; font-weight: 700; font-size: 19px;
+  color: var(--text); }
+.login-brand .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--brand-3);
+  box-shadow: 0 0 0 3px rgba(59,130,246,.25); }
+.login-sub { margin: 6px 0 22px; color: var(--text-dim); font-size: 13.5px; }
+.login-form .field { margin-bottom: 14px; }
+.login-or { display: flex; align-items: center; text-align: center; color: var(--text-dim);
+  font-size: 12px; margin: 18px 0; }
+.login-or::before, .login-or::after { content: ""; flex: 1; height: 1px; background: var(--line); }
+.login-or span { padding: 0 12px; }
+.demo-cta { border-color: var(--amber); color: var(--amber); background: var(--amber-weak); }
+.demo-cta:hover { background: #fbe7c8; }
+.login-note { margin: 12px 0 0; color: var(--text-dim); font-size: 12.5px; line-height: 1.5; }
