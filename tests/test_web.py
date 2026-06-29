@@ -23,8 +23,8 @@ def client(monkeypatch, tmp_path):
         return cfg
 
     monkeypatch.setattr(webapp, "load_config", fake_load)
-    # isolate the demo sandbox DB into the tmp dir (default lives at the repo root)
-    monkeypatch.setattr(webapp.demoer, "DEMO_DB", str(tmp_path / "demo.db"))
+    # isolate the per-session demo sandbox DBs into the tmp dir (default lives at .demo/)
+    monkeypatch.setattr(webapp.demoer, "DEMO_DIR", tmp_path / "demo")
     from fastapi.testclient import TestClient
     return TestClient(webapp.app)
 
@@ -153,6 +153,19 @@ def test_demo_scan_adds_two_then_notices(client):
     # second run just tells the user it's a demo (no new work)
     r2 = client.post("/agent/run", follow_redirects=False)
     assert "simulation" in unquote(r2.headers["location"])
+
+
+def test_demo_sessions_are_isolated(client):
+    """One visitor wrecking their sandbox must not affect another's."""
+    import jobagent.web.app as webapp
+    from fastapi.testclient import TestClient
+    other = TestClient(webapp.app)
+    client.post("/demo")
+    other.post("/demo")
+    # visitor A dismisses a seeded job from their own board
+    client.post("/jobs/demo-1/dismiss", follow_redirects=False)
+    assert "Stripe" not in client.get("/jobs").text          # gone for A
+    assert "Stripe" in other.get("/jobs").text               # still there for B
 
 
 def test_demo_settings_are_read_only(client, monkeypatch):

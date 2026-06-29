@@ -70,6 +70,17 @@
     }
   });
 
+  // ---- theme toggle ---------------------------------------------------------
+  // The <head> inline script already applied the saved theme before paint; here we
+  // just wire the toggle button and persist the choice.
+  document.addEventListener("click", function (e) {
+    if (!e.target.closest("#theme-toggle")) return;
+    var light = document.documentElement.getAttribute("data-theme") === "light";
+    if (light) document.documentElement.removeAttribute("data-theme");
+    else document.documentElement.setAttribute("data-theme", "light");
+    try { localStorage.setItem("jp-theme", light ? "dark" : "light"); } catch (err) {}
+  });
+
   // ---- confirm dialog -------------------------------------------------------
   function confirmDialog(message, opts) {
     opts = opts || {};

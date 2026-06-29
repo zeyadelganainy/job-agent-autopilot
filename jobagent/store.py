@@ -194,14 +194,23 @@ class Store:
         return self.conn.execute(
             "SELECT * FROM agent_runs ORDER BY id DESC LIMIT ?", (limit,)).fetchall()
 
-    def today_stats(self) -> dict:
+    def today_stats(self, day_start: str = None, day_end: str = None) -> dict:
+        """Counts for "today". Timestamps are stored UTC; pass a [day_start, day_end)
+        UTC window (as 'YYYY-MM-DD HH:MM:SS' strings) to bucket by the user's local day.
+        Without a window it falls back to the UTC calendar day."""
+        if day_start and day_end:
+            run_where = "started_at >= ? AND started_at < ?"
+            app_where = "applied_at IS NOT NULL AND applied_at >= ? AND applied_at < ?"
+            run_p = app_p = (day_start, day_end)
+        else:
+            run_where, app_where, run_p, app_p = ("date(started_at)=date('now')",
+                "applied_at IS NOT NULL AND date(applied_at)=date('now')", (), ())
         r = self.conn.execute(
             "SELECT COALESCE(SUM(scanned),0) s, COALESCE(SUM(matched),0) m, "
-            "COALESCE(SUM(generated),0) g FROM agent_runs WHERE date(started_at)=date('now')"
+            f"COALESCE(SUM(generated),0) g FROM agent_runs WHERE {run_where}", run_p
         ).fetchone()
         applied = self.conn.execute(
-            "SELECT COUNT(*) c FROM jobs WHERE applied_at IS NOT NULL "
-            "AND date(applied_at)=date('now')").fetchone()["c"]
+            f"SELECT COUNT(*) c FROM jobs WHERE {app_where}", app_p).fetchone()["c"]
         attention = self.conn.execute(
             "SELECT COUNT(*) c FROM jobs WHERE status='needs_attention'").fetchone()["c"]
         return {"scanned": r["s"], "matched": r["m"], "generated": r["g"],

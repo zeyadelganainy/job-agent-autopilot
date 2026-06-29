@@ -17,13 +17,53 @@ from pathlib import Path
 from ..config import ROOT
 from ..store import Store
 
-DEMO_DB = "demo.db"
-DEMO_NOTICE = ("Demo mode — this is a simulation, no live API calls are made. "
-               "Click around freely!")
+# Each demo visitor gets their OWN freshly-seeded database under DEMO_DIR, so no one can
+# alter the demo for anyone else. Stale session DBs are pruned on each new entry.
+DEMO_DIR = ROOT / ".demo"
+DEMO_NOTICE = ("Demo mode — this is a private sandbox just for you. It's a simulation, "
+               "no live API calls are made. Click around freely!")
+SESSION_MAX_AGE = 6 * 3600          # prune demo DBs older than this
 
 
 def is_demo(sess) -> bool:
     return bool(sess) and sess.get("role") == "demo"
+
+
+def session_db(demo_id: str) -> str:
+    """Absolute path to a demo session's SQLite DB (Store treats an absolute path as-is)."""
+    return str((DEMO_DIR / f"demo_{demo_id or 'shared'}.db").resolve())
+
+
+def _wipe(path: str):
+    for suffix in ("", "-wal", "-shm"):
+        p = Path(path + suffix)
+        if p.exists():
+            try:
+                p.unlink()
+            except OSError:
+                pass
+
+
+def prune(max_age: float = SESSION_MAX_AGE):
+    """Delete stale demo session DBs so old sessions can't pile up (or be revisited)."""
+    if not DEMO_DIR.exists():
+        return
+    now = time.time()
+    for p in DEMO_DIR.glob("demo_*.db"):
+        try:
+            if now - p.stat().st_mtime > max_age:
+                _wipe(str(p))
+        except OSError:
+            pass
+
+
+def ensure_session(output_dir: Path, demo_id: str) -> str:
+    """Return a ready demo DB for this session, seeding a fresh one if it's missing
+    (e.g. after a prune) — so a returning demo cookie always lands on clean data."""
+    path = session_db(demo_id)
+    if not Path(path).exists():
+        reset_and_seed(output_dir, demo_id)
+    return path
 
 
 def _recent(days_ago: int = 1) -> str:
@@ -149,16 +189,12 @@ def _seed(store: Store, output_dir: Path):
     conn.commit()
 
 
-def reset_and_seed(output_dir: Path):
-    """Wipe and reseed the demo DB so every recruiter starts from the same clean slate."""
-    for suffix in ("", "-wal", "-shm"):
-        p = ROOT / (DEMO_DB + suffix)
-        if p.exists():
-            try:
-                p.unlink()
-            except OSError:
-                pass
-    store = Store(DEMO_DB)
+def reset_and_seed(output_dir: Path, demo_id: str):
+    """Wipe and reseed one demo session's DB so this visitor starts from a clean slate."""
+    DEMO_DIR.mkdir(parents=True, exist_ok=True)
+    path = session_db(demo_id)
+    _wipe(path)
+    store = Store(path)
     try:
         _seed(store, output_dir)
     finally:

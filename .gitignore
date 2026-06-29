@@ -3,6 +3,7 @@ output/
 *.db
 *.db-wal
 *.db-shm
+.demo/                 # per-session demo sandboxes (ephemeral)
 __pycache__/
 *.pyc
 # Personal data — never commit anything under profile/ except the samples placeholder

@@ -4,6 +4,8 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{% block title %}JobPilot{% endblock %} · JobPilot</title>
+  <script>/* apply saved theme before paint to avoid a flash */
+    try { if (localStorage.getItem('jp-theme') === 'light') document.documentElement.setAttribute('data-theme','light'); } catch (e) {}</script>
   <link rel="stylesheet" href="/static/style.css?v={{ static_v }}">
 </head>
 <body>
@@ -45,7 +47,13 @@
   <div class="content">
     <header class="topbar">
       <h1>{% block heading %}JobPilot{% endblock %}</h1>
-      <div class="actions">{% block actions %}{% endblock %}</div>
+      <div class="actions">
+        <button class="theme-toggle" id="theme-toggle" type="button" aria-label="Toggle light / dark theme" title="Toggle light / dark theme">
+          <svg class="i-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="4.2"/><path d="M12 2.5v2.6M12 18.9v2.6M21.5 12h-2.6M5.1 12H2.5M18.4 5.6l-1.8 1.8M7.4 16.6l-1.8 1.8M18.4 18.4l-1.8-1.8M7.4 7.4 5.6 5.6"/></svg>
+          <svg class="i-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 14.2A8 8 0 1 1 9.8 4a6.4 6.4 0 0 0 10.2 10.2z"/></svg>
+        </button>
+        {% block actions %}{% endblock %}
+      </div>
     </header>
     <main>
       {% if notice %}<div class="banner banner-warn" id="notice-banner">{{ notice }}</div>{% endif %}

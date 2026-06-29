@@ -20,6 +20,7 @@ from collections import Counter
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from urllib.parse import quote
+from zoneinfo import ZoneInfo
 
 from fastapi import Depends, FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, RedirectResponse
@@ -54,9 +55,9 @@ def _secret() -> bytes:
     return (env("SESSION_SECRET") or env("WEB_PASSWORD") or "dev-secret").encode()
 
 
-def make_session(role: str, ttl: int = SESSION_TTL) -> str:
-    body = base64.urlsafe_b64encode(
-        json.dumps({"role": role, "exp": int(time.time()) + ttl}).encode()).decode()
+def make_session(role: str, ttl: int = SESSION_TTL, **extra) -> str:
+    payload = {"role": role, "exp": int(time.time()) + ttl, **extra}
+    body = base64.urlsafe_b64encode(json.dumps(payload).encode()).decode()
     sig = hmac.new(_secret(), body.encode(), hashlib.sha256).hexdigest()
     return f"{body}.{sig}"
 
@@ -113,12 +114,26 @@ def _login_redirect(request: Request, exc: LoginRequired):
 
 def _store(sess: dict = None) -> Store:
     if demoer.is_demo(sess):
-        return Store(demoer.DEMO_DB)
+        return Store(demoer.ensure_session(_output_dir(), sess.get("demo_id")))
     return Store(load_config()["paths"]["db"])
 
 
 def _output_dir() -> Path:
     return (ROOT / load_config()["paths"]["output"])
+
+
+def _local_day_window(cfg) -> tuple[str, str]:
+    """The current local day as a [start, end) UTC window (matching SQLite's stored
+    'YYYY-MM-DD HH:MM:SS' UTC timestamps), using the configured schedule timezone."""
+    tzname = ((cfg.get("schedule") or {}).get("timezone")) or "UTC"
+    try:
+        tz = ZoneInfo(tzname)
+    except Exception:
+        tz = timezone.utc
+    start_local = datetime.now(tz).replace(hour=0, minute=0, second=0, microsecond=0)
+    fmt = "%Y-%m-%d %H:%M:%S"
+    return (start_local.astimezone(timezone.utc).strftime(fmt),
+            (start_local + timedelta(days=1)).astimezone(timezone.utc).strftime(fmt))
 
 
 def _static_v() -> str:
@@ -228,11 +243,13 @@ def login_submit(request: Request, username: str = Form(""), password: str = For
 
 @app.post("/demo")
 def enter_demo():
-    """Reset + seed the sandbox, then drop the visitor into a demo session."""
-    demoer.reset_and_seed(_output_dir())
+    """Seed a fresh, private sandbox for this visitor, then drop them into it."""
+    demo_id = uuid.uuid4().hex[:12]
+    demoer.prune()                                  # clean up stale sessions
+    demoer.reset_and_seed(_output_dir(), demo_id)
     resp = _notice_redirect("/", demoer.DEMO_NOTICE)
-    resp.set_cookie(COOKIE, make_session("demo"), httponly=True, samesite="lax",
-                    max_age=SESSION_TTL)
+    resp.set_cookie(COOKIE, make_session("demo", demo_id=demo_id), httponly=True,
+                    samesite="lax", max_age=SESSION_TTL)
     return resp
 
 
@@ -257,7 +274,7 @@ def task_status(tid: str, _=Depends(require_auth)):
 def dashboard(request: Request, task: str = None, sess=Depends(require_auth)):
     s = _store(sess)
     try:
-        stats = s.today_stats()
+        stats = s.today_stats(*_local_day_window(load_config()))
         ready = [dict(r) for r in s.ready_to_apply()]
         attention = [dict(r) for r in s.needs_attention()]
         runs = [dict(r) for r in s.list_runs(8)]
