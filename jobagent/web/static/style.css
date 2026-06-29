@@ -452,3 +452,9 @@ textarea { resize: vertical; min-height: 200px; font-family: var(--mono); font-s
   .stats .stat:nth-child(5) { animation-delay: .16s; }
   @keyframes rise { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
 }
+
+/* ---- job title link (jobs board) ---- */
+.joblink { color: var(--text); font-weight: 500; }
+.joblink:hover { color: var(--accent); text-decoration: none; }
+.joblink .ext { color: var(--text-mute); font-size: .9em; }
+.joblink:hover .ext { color: var(--accent); }

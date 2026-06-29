@@ -31,8 +31,12 @@ not your laptop is on. Your résumé/profile and API keys stay in your own deplo
 - 🛟 **Flags what it can't finish** — an LLM quota/API error, or a posting behind a manual portal
   (Workday/Taleo/iCIMS/…), lands in a **triage queue** for you, never silently dropped.
 - 📧 **Emails you a digest** each run (what's ready to apply, what needs attention).
-- 🖥️ **Monitoring console** — today's stats, a Ready-to-apply queue, triage, run history, an
-  editable application tracker, and analytics.
+- 🖥️ **Monitoring console (“JobPilot”)** — today's stats, a Ready-to-apply queue, triage, run
+  history, an editable tracker, and analytics; behind a **login page** with a **dark / light theme
+  toggle**.
+- 🎭 **One-click demo for recruiters** — a “View the demo” button opens a private, **no-live-calls**
+  sandbox seeded with sample jobs, documents, and tracker history. Every visitor gets their own
+  freshly-seeded copy, so it can't be altered for anyone else, and no LLM/SMTP/network call is made.
 - 🗂️ **Tracks applications** — import your spreadsheet, see how many are still **active**, and let
   stale "Applied" rows **auto-ghost** after a configurable number of weeks.
 - ✅ **You apply** — the Apply button records the application and opens the posting; it never submits.
@@ -49,10 +53,15 @@ not your laptop is on. Your résumé/profile and API keys stay in your own deplo
   layout, clickable links) from a single source-of-truth file; never invents links; fills a full
   page; orders projects most-recent-first. Cover letters are longer, confident-not-arrogant, and
   aligned to the company's stated values.
-- **No build step** — FastAPI + Jinja + a little vanilla JS / Chart.js; SQLite for state.
+- **Login + isolated recruiter demo** — a session-cookie login page (HTTP Basic is still accepted
+  for scripts/tests); the demo runs entirely on premade data, intercepts every live action, and
+  gives each visitor a private, freshly-seeded SQLite sandbox that never touches your real data.
+- **Themed, no-build UI** — FastAPI + Jinja + a little vanilla JS / Chart.js; a dark-by-default
+  design system with a persisted light-mode toggle, plus custom toast notifications and confirm
+  dialogs (no native browser prompts). SQLite for state.
 - **Always-on for $0** — deploy assets for an Oracle Cloud Always Free VM (systemd + Caddy HTTPS),
   with Python provided by [`uv`](https://docs.astral.sh/uv/) so it works even on older distros.
-- **Config-driven & tested** — everything in `config.yaml`; hermetic `pytest` suite (90+ tests) in CI.
+- **Config-driven & tested** — everything in `config.yaml`; hermetic `pytest` suite (100+ tests) in CI.
 
 ---
 
@@ -76,6 +85,7 @@ ANTHROPIC_API_KEY=        # leave blank to run on Gemini only
 GEMINI_API_KEY=your_gemini_key
 WEB_USERNAME=admin
 WEB_PASSWORD=choose-a-strong-password
+SESSION_SECRET=        # optional: signs the login cookie (defaults to WEB_PASSWORD)
 # Email digest (Gmail: smtp.gmail.com / 587 / an App Password)
 SMTP_HOST=smtp.gmail.com
 SMTP_PORT=587
@@ -118,15 +128,21 @@ python run_web.py     # the console + the in-process daily scheduler
 # or, one autonomous run from the CLI (cron-friendly):
 python run_agent.py
 ```
-Open the console, log in with your `.env` credentials, and click **Run agent now**.
+Open the console, **log in** with your `.env` credentials (or click **View the demo** to explore a
+no-live-calls sandbox), and click **Run agent now**. Use the topbar toggle to switch dark / light.
 
 ---
 
 ## The console
-- **Dashboard** — today's Scanned / Matched / Prepared / Applied / Needs-attention; a **Ready to
-  apply** queue (download docs, Apply, Dismiss); a **Needs attention** triage queue (Retry / Apply /
-  Dismiss); recent run history; a live next-run countdown; **Run agent now**.
-- **Jobs** — manual control: filter / sort / paginate (top & bottom), generate or remove.
+Branded **JobPilot**, behind a login page (session cookie; HTTP Basic also accepted), with a
+dark / light theme toggle and a recruiter **demo mode**.
+
+- **Dashboard** — today's Scanned / Matched / Prepared / Applied / Needs-attention (counted in your
+  configured timezone); a **Ready to apply** queue (download docs, Apply, Dismiss); a **Needs
+  attention** triage queue (Retry / Apply / Dismiss); recent run history; a live next-run countdown;
+  **Run agent now**.
+- **Jobs** — manual control: filter / sort / paginate (top & bottom), generate or remove; each job
+  title links to its posting.
 - **Generate** — paste a JD or an ATS URL → tailored résumé + cover letter.
 - **Docs** — every generated document, searchable, paginated, with downloads.
 - **Tracker** — editable application history (CSV import from Google Sheets), sortable, paginated,
@@ -157,8 +173,9 @@ A single always-on VM runs the console **and** the daily agent for $0.
 5. Edit `deploy/Caddyfile` with your domain → `sudo cp deploy/Caddyfile /etc/caddy/Caddyfile && sudo systemctl reload caddy`.
 6. `sudo cp deploy/jobagent.service /etc/systemd/system/ && sudo systemctl daemon-reload && sudo systemctl enable --now jobagent`.
 
-Caddy provisions automatic HTTPS; the console is protected by HTTP Basic (`WEB_PASSWORD`) — use a
-strong password. The agent's daily run fires from the always-on service and emails you.
+Caddy provisions automatic HTTPS; the console sits behind a login page (a session cookie signed with
+`SESSION_SECRET`, falling back to `WEB_PASSWORD`; HTTP Basic is also accepted) — use a strong
+password. The agent's daily run fires from the always-on service and emails you.
 
 **Updating a deployment:** `git pull && uv pip install --python .venv/bin/python -r requirements.txt
 && sudo systemctl restart jobagent`, then re-run `sync-secrets.sh` if your `.env`/profile changed.

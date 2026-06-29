@@ -40,7 +40,6 @@
         <th>Role</th><th>Company</th>
         <th>{{ ui.sorth('Location', 'location', f) }}</th>
         <th>{{ ui.sorth('Posted', 'date', f) }}</th>
-        <th></th>
       </tr></thead>
       <tbody>
         {% for j in jobs %}
@@ -51,11 +50,14 @@
             <span class="score score-{{ band }}">{{ sc }}%</span>
             <div class="meter"><span class="fill-{{ band }}" style="width: {{ sc }}%"></span></div>
           </td>
-          <td>{{ j.title }}{% if j.reasons %}<div class="rowsub">{{ j.reasons }}</div>{% endif %}</td>
+          <td>
+            {% if j.url %}<a class="joblink" href="{{ j.url }}" target="_blank" rel="noopener">{{ j.title }} <span class="ext">↗</span></a>
+            {% else %}{{ j.title }}{% endif %}
+            {% if j.reasons %}<div class="rowsub">{{ j.reasons }}</div>{% endif %}
+          </td>
           <td>{{ j.company }}</td>
           <td class="cellmuted">{{ j.location or '—' }}</td>
           <td class="num cellmuted">{{ (j.posted or '')[:10] or '—' }}</td>
-          <td>{% if j.url %}<a href="{{ j.url }}" target="_blank" rel="noopener">posting ↗</a>{% endif %}</td>
         </tr>
         {% endfor %}
       </tbody>
