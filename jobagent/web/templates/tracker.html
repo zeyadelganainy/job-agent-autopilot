@@ -61,12 +61,12 @@
     <tbody>
       {% for a in apps %}
       <tr>
-        <td>{{ a.company }}</td>
-        <td>{{ a.role }}</td>
-        <td>{% if a.stage %}<span class="chip chip-{{ a.stage | lower | replace(' ', '-') }}">{{ a.stage }}</span>{% endif %}</td>
-        <td class="num cellmuted">{{ a.applied_date or '—' }}</td>
-        <td class="cellmuted">{{ a.location or '—' }}</td>
-        <td class="notes">{{ a.notes }}</td>
+        <td class="cell-title">{{ a.company }}</td>
+        <td data-label="Role">{{ a.role }}</td>
+        <td data-label="Stage">{% if a.stage %}<span class="chip chip-{{ a.stage | lower | replace(' ', '-') }}">{{ a.stage }}</span>{% endif %}</td>
+        <td class="num cellmuted" data-label="Applied">{{ a.applied_date or '—' }}</td>
+        <td class="cellmuted" data-label="Location">{{ a.location or '—' }}</td>
+        <td class="notes"{% if a.notes %} data-label="Notes"{% endif %}>{{ a.notes }}</td>
         <td class="rowact">
           <a class="btn btn-sm" href="/tracker/{{ a.id }}/edit">Edit</a>
           <form method="post" action="/tracker/{{ a.id }}/delete">

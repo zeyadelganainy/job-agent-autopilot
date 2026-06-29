@@ -268,6 +268,7 @@ textarea { resize: vertical; min-height: 200px; font-family: var(--mono); font-s
 .row3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; }
 .check { display: inline-flex; align-items: center; gap: 8px; font-size: 13.5px; }
 [type=checkbox] { accent-color: var(--accent); width: 15px; height: 15px; }
+.selonly { display: none; }   /* "Select" label shown only in mobile card mode */
 
 /* ---- toolbar / filters ---- */
 .actionbar { display: flex; align-items: center; gap: 12px; margin-top: 14px; }
@@ -337,19 +338,100 @@ textarea { resize: vertical; min-height: 200px; font-family: var(--mono); font-s
 
 /* ---- responsive ---- */
 @media (max-width: 900px) { .ins-grid { grid-template-columns: 1fr; } }
+
+/* tablet / landscape phone: stack the shell, let wide tables scroll instead of clip */
 @media (max-width: 820px) {
   .app { grid-template-columns: 1fr; }
-  .sidebar { position: static; height: auto; flex-direction: row; flex-wrap: wrap; align-items: center;
-    border-right: 0; border-bottom: 1px solid var(--line-2); }
-  .brand { padding: 6px 10px; }
-  .sidebar nav { display: flex; flex-wrap: wrap; gap: 2px; }
-  .navitem span { display: none; }
-  .sidebar-foot { margin: 0 0 0 auto; border: 0; padding: 0; flex-direction: row; align-items: center; }
-  .sidebar-foot .meta { display: none; }
+
+  /* sidebar → sticky mobile header: brand + actions on row 1, scrolling nav on row 2 */
+  .sidebar { position: sticky; top: 0; z-index: var(--z-sticky); height: auto;
+    flex-direction: row; flex-wrap: wrap; align-items: center; gap: 8px;
+    padding: 10px 14px; border-right: 0; border-bottom: 1px solid var(--line-2);
+    background: color-mix(in oklab, var(--sidebar) 90%, transparent); backdrop-filter: blur(8px); }
+  .brand { order: 1; margin-right: auto; padding: 0 2px; font-size: 16px; }
+  .sidebar-foot { order: 2; margin: 0; padding: 0; border: 0; flex-direction: row; align-items: center; gap: 8px; }
+  .sidebar-foot .meta, .demo-badge { display: none; }
+  .sidebar-foot .btn { width: auto; }
+  .signout { padding: 6px 4px; white-space: nowrap; }
+  .sidebar nav { order: 3; flex-basis: 100%; display: flex; flex-wrap: nowrap; gap: 4px;
+    overflow-x: auto; -webkit-overflow-scrolling: touch; scrollbar-width: none; }
+  .sidebar nav::-webkit-scrollbar { display: none; }
+  .navitem { flex: none; white-space: nowrap; padding: 8px 11px; }
+  .navitem:hover { padding-left: 11px; }   /* cancel the desktop hover nudge */
+
+  /* topbar wraps so wide page actions (e.g. CSV import) drop below the heading;
+     static here so it doesn't fight the now-sticky nav bar for top:0 */
+  .topbar { position: static; flex-wrap: wrap; min-height: 0; padding: 12px 16px; gap: 10px; }
+  .topbar h1 { font-size: 21px; }
+  .topbar .actions { flex-wrap: wrap; }
+  .topbar .btn-lg { padding: 9px 14px; font-size: 14px; }
+  main { padding: 18px 16px 56px; }
+
+  /* forms / filters / toolbars go single-column and full-width */
   .row2, .row3 { grid-template-columns: 1fr; }
-  .toolbar { flex-direction: column; }
-  .filters input[type=text] { width: 100%; }
+  .toolbar { flex-direction: column; align-items: stretch; }
+  .filters { align-items: stretch; }
+  .filters input[type=text], .filters input:not([type]), .filters select,
+  .filters .inl, .addform input { width: 100%; }
+  .filters .inl { justify-content: space-between; }
+  .addform { flex-direction: column; }
+  .importform { flex-wrap: wrap; }
+  .actionbar { flex-wrap: wrap; }
+
+  /* don't clip wide tables before the card breakpoint kicks in */
+  .table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  .pagerbar, .tablefoot { justify-content: center; }
 }
+
+/* phone: turn data tables into stacked cards (each row = one card) */
+@media (max-width: 680px) {
+  .table-wrap { overflow: hidden; }   /* cards don't overflow, so re-clip for rounded corners */
+  .table-wrap table, .table-wrap tbody, .table-wrap tr, .table-wrap td { display: block; width: auto; }
+  .table-wrap thead { display: none; }
+  .table-wrap tbody tr { padding: 13px 15px; border-bottom: 1px solid var(--line-2); }
+  .table-wrap tbody tr:last-child { border-bottom: 0; }
+  .table-wrap tbody tr:hover { background: transparent; }
+
+  /* default cell: "LABEL ............ value" */
+  .table-wrap td { padding: 5px 0; border: 0; white-space: normal;
+    display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+  .table-wrap td[data-label]::before { content: attr(data-label); flex: none;
+    font: 600 11.5px/1.4 var(--sans); letter-spacing: .05em; text-transform: uppercase;
+    color: var(--text-mute); }
+  .table-wrap td.cellmuted { color: var(--text-mute); text-align: right; }
+  .table-wrap td[colspan] { display: block; }
+
+  /* primary cell becomes the card title */
+  .table-wrap td.cell-title { display: block; font-weight: 600; font-size: 15.5px; padding: 0 0 6px; }
+  .table-wrap td.cell-title::before { content: none; }
+  .table-wrap td.cell-title .rowsub { max-width: none; }
+
+  /* score: show the pill, drop the decorative meter */
+  .table-wrap td.num .meter { display: none; }
+
+  /* full-width block cells: label above, content below */
+  .table-wrap td.files, .table-wrap td.notes { display: block; padding-top: 8px; }
+  .table-wrap td.files::before, .table-wrap td.notes::before { display: block; margin-bottom: 7px; }
+  .table-wrap td.notes { color: var(--text-dim); max-width: none; }
+  .table-wrap td.notes:empty { display: none; }
+
+  /* action cell: full-width stacked buttons (comfortable tap targets) */
+  .table-wrap td.rowact { display: flex; flex-direction: column; align-items: stretch;
+    gap: 8px; padding-top: 12px; }
+  .table-wrap td.rowact form { display: block; }
+  .table-wrap td.rowact .btn { width: 100%; }
+
+  /* bulk-select footer (jobs) */
+  .tablefoot { flex-direction: column; align-items: stretch; }
+  .tablefoot .actionbar .btn { flex: 1 1 auto; }
+  .table-wrap td > .check { font: 600 11.5px/1.4 var(--sans); letter-spacing: .05em;
+    text-transform: uppercase; color: var(--text-mute); }
+  .selonly { display: inline; }
+
+  /* avoid iOS auto-zoom on focus (needs >=16px) */
+  input[type=text], input[type=password], input:not([type]), textarea, select { font-size: 16px; }
+}
+
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
 
 /* ---- auth: demo badge, sign-out, login page ---- */

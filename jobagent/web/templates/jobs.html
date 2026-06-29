@@ -45,19 +45,19 @@
         {% for j in jobs %}
         {% set sc = j.score or 0 %}{% set band = 'hi' if sc >= 70 else ('mid' if sc >= 40 else 'lo') %}
         <tr>
-          <td><input type="checkbox" name="job_ids" value="{{ j.job_id }}"></td>
-          <td class="num">
+          <td><label class="check"><input type="checkbox" name="job_ids" value="{{ j.job_id }}"> <span class="selonly">Select</span></label></td>
+          <td class="num" data-label="Match">
             <span class="score score-{{ band }}">{{ sc }}%</span>
             <div class="meter"><span class="fill-{{ band }}" style="width: {{ sc }}%"></span></div>
           </td>
-          <td>
+          <td class="cell-title">
             {% if j.url %}<a class="joblink" href="{{ j.url }}" target="_blank" rel="noopener">{{ j.title }} <span class="ext">↗</span></a>
             {% else %}{{ j.title }}{% endif %}
             {% if j.reasons %}<div class="rowsub">{{ j.reasons }}</div>{% endif %}
           </td>
-          <td>{{ j.company }}</td>
-          <td class="cellmuted">{{ j.location or '—' }}</td>
-          <td class="num cellmuted">{{ (j.posted or '')[:10] or '—' }}</td>
+          <td data-label="Company">{{ j.company }}</td>
+          <td class="cellmuted" data-label="Location">{{ j.location or '—' }}</td>
+          <td class="num cellmuted" data-label="Posted">{{ (j.posted or '')[:10] or '—' }}</td>
         </tr>
         {% endfor %}
       </tbody>

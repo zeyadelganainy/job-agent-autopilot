@@ -21,9 +21,9 @@
     <tbody>
       {% for j in attention %}
       <tr>
-        <td>{{ j.title }}</td>
-        <td>{{ j.company }}</td>
-        <td><span class="chip chip-rejected">{{ j.flag_reason or 'needs attention' }}</span></td>
+        <td class="cell-title">{{ j.title }}</td>
+        <td data-label="Company">{{ j.company }}</td>
+        <td data-label="Why"><span class="chip chip-rejected">{{ j.flag_reason or 'needs attention' }}</span></td>
         <td class="rowact">
           {% if j.docs and j.url %}<a class="btn btn-sm btn-primary" href="{{ j.url }}" target="_blank" rel="noopener">Apply ↗</a>{% endif %}
           <form method="post" action="/jobs/{{ j.job_id }}/retry"><button class="btn btn-sm">Retry</button></form>
@@ -45,13 +45,13 @@
       {% for j in ready %}
       {% set sc = j.score or 0 %}{% set band = 'hi' if sc >= 70 else ('mid' if sc >= 40 else 'lo') %}
       <tr>
-        <td class="num">
+        <td class="num" data-label="Match">
           <span class="score score-{{ band }}">{{ sc }}%</span>
           <div class="meter"><span class="fill-{{ band }}" style="width: {{ sc }}%"></span></div>
         </td>
-        <td>{{ j.title }}</td>
-        <td>{{ j.company }}</td>
-        <td class="files">
+        <td class="cell-title">{{ j.title }}</td>
+        <td data-label="Company">{{ j.company }}</td>
+        <td class="files" data-label="Documents">
           {% for d in j.doc_files %}<a class="file" href="/download?path={{ d.path | urlencode }}">↓ {{ d.name }}</a>{% endfor %}
           {% if not j.doc_files %}<span class="cellmuted">—</span>{% endif %}
         </td>
@@ -79,12 +79,12 @@
     <tbody>
       {% for r in runs %}
       <tr>
-        <td class="mono">{{ (r.started_at or '')[:16] }}</td>
-        <td class="num">{{ r.scanned }}</td>
-        <td class="num">{{ r.matched }}</td>
-        <td class="num">{{ r.generated }}</td>
-        <td class="num">{{ r.needs_attention }}</td>
-        <td>{% if r.status == 'error' %}<span class="chip chip-rejected">error</span>{% elif r.status == 'running' %}<span class="chip">running</span>{% else %}<span class="chip chip-offer">ok</span>{% endif %}</td>
+        <td class="mono cell-title">{{ (r.started_at or '')[:16] }}</td>
+        <td class="num" data-label="Scanned">{{ r.scanned }}</td>
+        <td class="num" data-label="Matched">{{ r.matched }}</td>
+        <td class="num" data-label="Prepared">{{ r.generated }}</td>
+        <td class="num" data-label="Attention">{{ r.needs_attention }}</td>
+        <td data-label="Status">{% if r.status == 'error' %}<span class="chip chip-rejected">error</span>{% elif r.status == 'running' %}<span class="chip">running</span>{% else %}<span class="chip chip-offer">ok</span>{% endif %}</td>
       </tr>
       {% endfor %}
     </tbody>
