@@ -79,6 +79,8 @@
     if (light) document.documentElement.removeAttribute("data-theme");
     else document.documentElement.setAttribute("data-theme", "light");
     try { localStorage.setItem("jp-theme", light ? "dark" : "light"); } catch (err) {}
+    // let theme-aware widgets (e.g. the Insights charts) restyle without a reload
+    window.dispatchEvent(new CustomEvent("jp:themechange", { detail: { light: !light } }));
   });
 
   // ---- confirm dialog -------------------------------------------------------

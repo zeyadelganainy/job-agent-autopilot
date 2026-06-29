@@ -52,66 +52,97 @@
 (function () {
   if (typeof Chart === "undefined") return;   // offline / CDN blocked — empty states stay
   const REDUCE = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-  // Pull live theme colors so the charts track the dark design system.
-  const css = getComputedStyle(document.documentElement);
-  const v = (n) => css.getPropertyValue(n).trim();
-  const COL = { text: v("--text-dim"), surface: v("--surface"), accent: v("--accent"),
-    blue: v("--c-applied"), amber: v("--mid"), green: v("--hi"), gray: v("--c-rejected") };
-  const GRID = v("--chart-grid");
-  const FILL_ACCENT = v("--chart-fill-accent"), FILL_GREEN = v("--chart-fill-green");
   Chart.defaults.font.family = "Fira Sans, system-ui, sans-serif";
-  Chart.defaults.color = COL.text;
-  Chart.defaults.borderColor = GRID;
+
+  // Re-read live theme colors each call so charts can restyle when the theme toggles.
+  function colors() {
+    const css = getComputedStyle(document.documentElement);
+    const v = (n) => css.getPropertyValue(n).trim();
+    return {
+      text: v("--text-dim"), surface: v("--surface"), accent: v("--accent"),
+      green: v("--hi"), amber: v("--mid"), grid: v("--chart-grid"),
+      fillA: v("--chart-fill-accent"), fillG: v("--chart-fill-green"),
+      palette: [v("--accent"), v("--c-applied"), v("--mid"), v("--hi"), v("--c-rejected"),
+        v("--accent-3"), "oklch(0.74 0.13 300)", "oklch(0.78 0.12 350)",
+        "oklch(0.80 0.11 50)", "oklch(0.78 0.12 140)"]
+    };
+  }
+  const lineAxes = (c) => ({ y: { beginAtZero: true, ticks: { precision: 0, color: c.text }, grid: { color: c.grid } },
+                             x: { ticks: { color: c.text }, grid: { display: false } } });
+  const legend = (c, pos) => ({ position: pos, labels: { boxWidth: 12, usePointStyle: true, color: c.text } });
+  const anim = REDUCE ? false : { duration: 250 };
+  const charts = {};
+  let c = colors();
+  Chart.defaults.color = c.text;
+  Chart.defaults.borderColor = c.grid;
 
   {% if m_labels %}
   const labels = {{ m_labels | tojson }}, data = {{ m_counts | tojson }}, avg = {{ avg }};
-  new Chart(document.getElementById("overTime"), {
+  charts.overTime = new Chart(document.getElementById("overTime"), {
     type: "line",
     data: { labels, datasets: [
-      { label: "Applications", data, borderColor: COL.accent, backgroundColor: FILL_ACCENT,
-        fill: true, tension: .35, borderWidth: 2, pointRadius: 3, pointBackgroundColor: COL.accent },
-      { label: "Average (" + avg + ")", data: labels.map(() => avg), borderColor: COL.amber,
+      { label: "Applications", data, borderColor: c.accent, backgroundColor: c.fillA,
+        fill: true, tension: .35, borderWidth: 2, pointRadius: 3, pointBackgroundColor: c.accent },
+      { label: "Average (" + avg + ")", data: labels.map(() => avg), borderColor: c.amber,
         borderDash: [6, 4], borderWidth: 1.5, pointRadius: 0, fill: false }
     ]},
-    options: { responsive: true, maintainAspectRatio: false, animation: REDUCE ? false : { duration: 250 },
+    options: { responsive: true, maintainAspectRatio: false, animation: anim,
       interaction: { mode: "index", intersect: false },
-      plugins: { legend: { position: "top", labels: { boxWidth: 12, usePointStyle: true } } },
-      scales: { y: { beginAtZero: true, ticks: { precision: 0 }, grid: { color: GRID } },
-                x: { grid: { display: false } } } }
+      plugins: { legend: legend(c, "top") }, scales: lineAxes(c) }
   });
   {% endif %}
 
   {% if stage_labels %}
-  const palette = [COL.accent, COL.blue, COL.amber, COL.green, COL.gray, v("--accent-3"),
-    "oklch(0.74 0.13 300)", "oklch(0.78 0.12 350)", "oklch(0.80 0.11 50)", "oklch(0.78 0.12 140)"];
   const sl = {{ stage_labels | tojson }}, sc = {{ stage_counts | tojson }};
-  new Chart(document.getElementById("byStage"), {
+  charts.byStage = new Chart(document.getElementById("byStage"), {
     type: "doughnut",
-    data: { labels: sl, datasets: [{ data: sc, backgroundColor: sl.map((_, i) => palette[i % palette.length]),
-            borderColor: COL.surface, borderWidth: 2 }] },
-    options: { responsive: true, maintainAspectRatio: false, cutout: "58%",
-      animation: REDUCE ? false : { duration: 250 },
-      plugins: { legend: { position: "bottom", labels: { boxWidth: 12, usePointStyle: true, padding: 12 } } } }
+    data: { labels: sl, datasets: [{ data: sc, backgroundColor: sl.map((_, i) => c.palette[i % c.palette.length]),
+            borderColor: c.surface, borderWidth: 2 }] },
+    options: { responsive: true, maintainAspectRatio: false, cutout: "58%", animation: anim,
+      plugins: { legend: { position: "bottom", labels: { boxWidth: 12, usePointStyle: true, padding: 12, color: c.text } } } }
   });
   {% endif %}
 
   {% if act_labels %}
   const al = {{ act_labels | tojson }}, prep = {{ act_prepared | tojson }}, appl = {{ act_applied | tojson }};
-  new Chart(document.getElementById("agentActivity"), {
+  charts.activity = new Chart(document.getElementById("agentActivity"), {
     type: "line",
     data: { labels: al, datasets: [
-      { label: "Documents prepared", data: prep, borderColor: COL.accent,
-        backgroundColor: FILL_ACCENT, fill: true, tension: .35, borderWidth: 2, pointRadius: 3 },
-      { label: "Applications made", data: appl, borderColor: COL.green,
-        backgroundColor: FILL_GREEN, fill: true, tension: .35, borderWidth: 2, pointRadius: 3 }
+      { label: "Documents prepared", data: prep, borderColor: c.accent,
+        backgroundColor: c.fillA, fill: true, tension: .35, borderWidth: 2, pointRadius: 3 },
+      { label: "Applications made", data: appl, borderColor: c.green,
+        backgroundColor: c.fillG, fill: true, tension: .35, borderWidth: 2, pointRadius: 3 }
     ]},
-    options: { responsive: true, maintainAspectRatio: false, animation: REDUCE ? false : { duration: 250 },
+    options: { responsive: true, maintainAspectRatio: false, animation: anim,
       interaction: { mode: "index", intersect: false },
-      plugins: { legend: { position: "top", labels: { boxWidth: 12, usePointStyle: true } } },
-      scales: { y: { beginAtZero: true, ticks: { precision: 0 }, grid: { color: GRID } },
-                x: { grid: { display: false } } } }
+      plugins: { legend: legend(c, "top") }, scales: lineAxes(c) }
   });
   {% endif %}
+
+  // Restyle in place when the theme toggles (no reload).
+  window.addEventListener("jp:themechange", function () {
+    c = colors();
+    Chart.defaults.color = c.text;
+    Chart.defaults.borderColor = c.grid;
+    if (charts.overTime) {
+      const ch = charts.overTime, d = ch.data.datasets;
+      d[0].borderColor = d[0].pointBackgroundColor = c.accent; d[0].backgroundColor = c.fillA;
+      d[1].borderColor = c.amber; ch.options.scales = lineAxes(c);
+      ch.options.plugins.legend = legend(c, "top"); ch.update("none");
+    }
+    if (charts.byStage) {
+      const ch = charts.byStage;
+      ch.data.datasets[0].backgroundColor = ch.data.labels.map((_, i) => c.palette[i % c.palette.length]);
+      ch.data.datasets[0].borderColor = c.surface;
+      ch.options.plugins.legend.labels.color = c.text; ch.update("none");
+    }
+    if (charts.activity) {
+      const ch = charts.activity, d = ch.data.datasets;
+      d[0].borderColor = c.accent; d[0].backgroundColor = c.fillA;
+      d[1].borderColor = c.green; d[1].backgroundColor = c.fillG;
+      ch.options.scales = lineAxes(c); ch.options.plugins.legend = legend(c, "top"); ch.update("none");
+    }
+  });
 })();
 </script>
 {% endblock %}
