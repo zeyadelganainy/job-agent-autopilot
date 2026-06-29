@@ -31,7 +31,7 @@
     <div class="panel-h"><h2>Generated · {{ result.job.title }} — {{ result.job.company }}</h2></div>
     <div class="panel-b">
       <div class="files">
-        {% for d in result.docs %}<a class="file" href="/download?path={{ d.path | urlencode }}">↓ {{ d.name }}</a>{% endfor %}
+        {% for d in result.docs %}<a class="file" href="/download?path={{ d.path | urlencode }}" title="{{ d.name }}"><span class="file-ic">↓</span><span class="fname">{{ d.name }}</span></a>{% endfor %}
       </div>
     </div>
   </div>

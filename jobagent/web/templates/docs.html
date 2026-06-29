@@ -25,7 +25,7 @@
       <div class="h">{{ j.title }} <span class="muted">— {{ j.company }}</span>
         <span class="rowdate mono">{{ (j.created_at or '')[:10] }}</span></div>
       <div class="files">
-        {% for d in j.doc_files %}<a class="file" href="/download?path={{ d.path | urlencode }}">↓ {{ d.name }}</a>{% endfor %}
+        {% for d in j.doc_files %}<a class="file" href="/download?path={{ d.path | urlencode }}" title="{{ d.name }}"><span class="file-ic">↓</span><span class="fname">{{ d.name }}</span></a>{% endfor %}
       </div>
     </div>
     {% endfor %}

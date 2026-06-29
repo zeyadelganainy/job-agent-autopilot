@@ -10,9 +10,31 @@
 </head>
 <body>
 {% set p = request.url.path %}
+{% macro theme_btn() %}
+<button class="theme-toggle" type="button" aria-label="Toggle light / dark theme" title="Toggle light / dark theme">
+  <svg class="i-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="4.2"/><path d="M12 2.5v2.6M12 18.9v2.6M21.5 12h-2.6M5.1 12H2.5M18.4 5.6l-1.8 1.8M7.4 16.6l-1.8 1.8M18.4 18.4l-1.8-1.8M7.4 7.4 5.6 5.6"/></svg>
+  <svg class="i-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 14.2A8 8 0 1 1 9.8 4a6.4 6.4 0 0 0 10.2 10.2z"/></svg>
+</button>
+{% endmacro %}
 <div class="app">
-  <aside class="sidebar">
+  <header class="appbar">
+    <button class="iconbtn appbar-burger" id="nav-toggle" type="button" aria-label="Open navigation menu" aria-expanded="false" aria-controls="sidebar">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 6h18M3 12h18M3 18h18"/></svg>
+    </button>
     <div class="brand"><span class="dot"></span> JobPilot</div>
+    <div class="appbar-actions">
+      {{ theme_btn() }}
+      <form method="post" action="/agent/run"><button class="btn btn-primary btn-sm">Run agent</button></form>
+    </div>
+  </header>
+  <div class="nav-scrim" id="nav-scrim"></div>
+
+  <aside class="sidebar" id="sidebar">
+    <div class="brand"><span class="dot"></span> JobPilot
+      <button class="iconbtn drawer-close" id="nav-close" type="button" aria-label="Close menu">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>
+      </button>
+    </div>
     <nav>
       <a class="navitem {{ 'active' if p == '/' }}" href="/">
         <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="1.5" y="1.5" width="5" height="5" rx="1"/><rect x="9" y="1.5" width="5" height="5" rx="1"/><rect x="1.5" y="9" width="5" height="5" rx="1"/><rect x="9" y="9" width="5" height="5" rx="1"/></svg>
@@ -40,7 +62,10 @@
       {% if session and session.role == 'demo' %}<div class="demo-badge">DEMO MODE</div>{% endif %}
       <div class="meta">Next run <span id="next-scan" data-next="{{ next_scan_ts }}">{{ next_scan }}</span></div>
       <form method="post" action="/agent/run"><button class="btn btn-block">Run agent now</button></form>
-      <a class="signout" href="/logout">{% if session and session.role == 'demo' %}Exit demo{% else %}Sign out{% endif %}</a>
+      <a class="signout" href="/logout">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="M16 17l5-5-5-5M21 12H9"/></svg>
+        <span>{% if session and session.role == 'demo' %}Exit demo{% else %}Sign out{% endif %}</span>
+      </a>
     </div>
   </aside>
 
@@ -48,10 +73,7 @@
     <header class="topbar">
       <h1>{% block heading %}JobPilot{% endblock %}</h1>
       <div class="actions">
-        <button class="theme-toggle" id="theme-toggle" type="button" aria-label="Toggle light / dark theme" title="Toggle light / dark theme">
-          <svg class="i-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="4.2"/><path d="M12 2.5v2.6M12 18.9v2.6M21.5 12h-2.6M5.1 12H2.5M18.4 5.6l-1.8 1.8M7.4 16.6l-1.8 1.8M18.4 18.4l-1.8-1.8M7.4 7.4 5.6 5.6"/></svg>
-          <svg class="i-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 14.2A8 8 0 1 1 9.8 4a6.4 6.4 0 0 0 10.2 10.2z"/></svg>
-        </button>
+        {{ theme_btn() }}
         {% block actions %}{% endblock %}
       </div>
     </header>

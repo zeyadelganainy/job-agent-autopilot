@@ -62,7 +62,8 @@
   --chart-fill-green: rgba(62,207,142,.13);
 
   /* z-index scale */
-  --z-sticky: 5; --z-modal-back: 1100; --z-modal: 1101; --z-toast: 1200;
+  --z-sticky: 5; --z-scrim: 900; --z-drawer: 950;
+  --z-modal-back: 1100; --z-modal: 1101; --z-toast: 1200;
 }
 
 /* ===== Light theme ===== */
@@ -159,6 +160,18 @@ a:hover { color: var(--accent-3); text-decoration: none; }
   padding-top: 14px; border-top: 1px solid var(--line-2); }
 .sidebar-foot .meta { font: 11.5px/1.4 var(--mono); color: var(--nav-dim); padding: 0 4px; }
 
+/* ---- mobile app bar + nav drawer ---- */
+/* square icon button — shared by the hamburger, drawer close, and theme toggle */
+.iconbtn { display: inline-flex; align-items: center; justify-content: center;
+  width: 40px; height: 40px; flex: none; border-radius: 9px; cursor: pointer;
+  border: 1px solid var(--line); background: var(--surface); color: var(--text-dim);
+  transition: color .18s ease, border-color .18s ease, background .18s ease, transform .12s ease; }
+.iconbtn:hover { color: var(--accent); border-color: var(--accent-line); background: var(--elevated); }
+.iconbtn:active { transform: scale(.94); }
+.iconbtn svg { width: 19px; height: 19px; }
+/* hidden on desktop — declared after .iconbtn so this wins over its display */
+.appbar, .nav-scrim, .drawer-close { display: none; }
+
 /* ---- content ---- */
 .content { display: flex; flex-direction: column; min-width: 0; }
 .topbar { position: sticky; top: 0; z-index: var(--z-sticky); display: flex; align-items: center;
@@ -173,7 +186,11 @@ main { padding: 26px 30px 64px; min-width: 0; }
 .btn { font: inherit; font-weight: 600; padding: 9px 15px; border-radius: 9px; cursor: pointer;
   border: 1px solid var(--line); background: var(--elevated); color: var(--text);
   transition: background .18s ease, border-color .18s ease, box-shadow .18s ease, transform .06s ease;
-  line-height: 1; }
+  line-height: 1;
+  /* inline-flex so <a class="btn"> and <button class="btn"> size and center
+     identically — anchors otherwise ignore width and left-align their text */
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  text-decoration: none; }
 .btn:hover { background: color-mix(in oklab, var(--elevated) 80%, var(--text) 6%); border-color: var(--line); }
 .btn:active { transform: translateY(1px); }
 .btn:disabled { opacity: .5; cursor: not-allowed; }
@@ -311,8 +328,11 @@ textarea { resize: vertical; min-height: 200px; font-family: var(--mono); font-s
 .files { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
 .file { display: inline-flex; align-items: center; gap: 7px; padding: 6px 10px; border: 1px solid var(--line);
   border-radius: 8px; background: var(--surface-2); color: var(--text-dim); font: 12px/1 var(--mono);
-  transition: border-color .16s ease, color .16s ease, background .16s ease; }
+  max-width: 100%; transition: border-color .16s ease, color .16s ease, background .16s ease; }
 .file:hover { background: var(--accent-weak); border-color: var(--accent-line); color: var(--text); text-decoration: none; }
+.file .file-ic { flex: none; }
+/* long filenames truncate with an ellipsis instead of spilling past the card */
+.file .fname { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .docrow { padding: 14px 16px; border-bottom: 1px solid var(--line-2); }
 .docrow:last-child { border-bottom: 0; }
 .docrow .h { font-weight: 600; }
@@ -356,26 +376,41 @@ textarea { resize: vertical; min-height: 200px; font-family: var(--mono); font-s
      allowed to shrink to the viewport, or one wide row zooms the whole page out */
   .app { grid-template-columns: minmax(0, 1fr); }
 
-  /* sidebar → sticky mobile header: brand + actions on row 1, scrolling nav on row 2.
-     env() insets keep it clear of the notch / Dynamic Island and side cutouts. */
-  .sidebar { position: sticky; top: 0; z-index: var(--z-sticky); height: auto;
-    flex-direction: row; flex-wrap: wrap; align-items: center; gap: 8px;
-    padding: 10px 14px;
-    padding-top: max(10px, env(safe-area-inset-top));
-    padding-left: max(14px, env(safe-area-inset-left));
-    padding-right: max(14px, env(safe-area-inset-right));
-    border-right: 0; border-bottom: 1px solid var(--line-2);
-    background: color-mix(in oklab, var(--sidebar) 90%, transparent); backdrop-filter: blur(8px); }
-  .brand { order: 1; margin-right: auto; padding: 0 2px; font-size: 16px; }
-  .sidebar-foot { order: 2; margin: 0; padding: 0; border: 0; flex-direction: row; align-items: center; gap: 8px; }
-  .sidebar-foot .meta, .demo-badge { display: none; }
-  .sidebar-foot .btn { width: auto; }
-  .signout { padding: 6px 4px; white-space: nowrap; }
-  .sidebar nav { order: 3; flex-basis: 100%; display: flex; flex-wrap: nowrap; gap: 4px;
-    overflow-x: auto; -webkit-overflow-scrolling: touch; scrollbar-width: none; }
-  .sidebar nav::-webkit-scrollbar { display: none; }
-  .navitem { flex: none; white-space: nowrap; padding: 8px 11px; }
-  .navitem:hover { padding-left: 11px; }   /* cancel the desktop hover nudge */
+  /* sticky top app bar replaces the persistent sidebar; env() insets clear the
+     notch / Dynamic Island / side cutouts */
+  .appbar { display: flex; align-items: center; gap: 10px;
+    position: sticky; top: 0; z-index: var(--z-sticky);
+    padding: 9px 14px;
+    padding-top: max(9px, env(safe-area-inset-top));
+    padding-left: max(12px, env(safe-area-inset-left));
+    padding-right: max(12px, env(safe-area-inset-right));
+    border-bottom: 1px solid var(--line-2);
+    background: color-mix(in oklab, var(--sidebar) 88%, transparent); backdrop-filter: blur(8px); }
+  .appbar .brand { padding: 0; font-size: 16px; }
+  .appbar-actions { margin-left: auto; display: flex; align-items: center; gap: 8px; }
+  .appbar-actions .btn-sm { padding: 9px 13px; }
+
+  /* dim + lock the page behind the open drawer */
+  .nav-scrim { display: block; position: fixed; inset: 0; z-index: var(--z-scrim);
+    background: color-mix(in oklab, var(--bg) 38%, transparent); backdrop-filter: blur(2px);
+    opacity: 0; visibility: hidden; transition: opacity .26s ease, visibility .26s ease; }
+  .app.nav-open .nav-scrim { opacity: 1; visibility: visible; }
+
+  /* the sidebar is now a left off-canvas drawer */
+  .sidebar { position: fixed; top: 0; left: 0; z-index: var(--z-drawer);
+    width: min(84vw, 290px); height: 100vh; height: 100dvh;
+    flex-direction: column; gap: 3px; align-items: stretch;
+    padding: 16px 12px;
+    padding-top: max(16px, env(safe-area-inset-top));
+    padding-left: max(12px, env(safe-area-inset-left));
+    padding-bottom: max(16px, env(safe-area-inset-bottom));
+    border-right: 1px solid var(--line-2); border-bottom: 0;
+    overflow-y: auto; overscroll-behavior: contain;
+    transform: translateX(-100%); transition: transform .26s cubic-bezier(.22,1,.36,1); }
+  .app.nav-open .sidebar { transform: none; box-shadow: var(--shadow-mod); }
+  .drawer-close { display: inline-flex; margin-left: auto; width: 34px; height: 34px; }
+  .drawer-close svg { width: 17px; height: 17px; }
+  .sidebar-foot .btn { width: 100%; }
 
   /* topbar wraps so wide page actions (e.g. CSV import) drop below the heading;
      static here so it doesn't fight the now-sticky nav bar for top:0 */
@@ -385,6 +420,9 @@ textarea { resize: vertical; min-height: 200px; font-family: var(--mono); font-s
   .topbar h1 { font-size: 21px; }
   .topbar .actions { flex-wrap: wrap; }
   .topbar .btn-lg { padding: 9px 14px; font-size: 14px; }
+  /* theme toggle + Run agent are in the app bar on mobile — avoid the duplicates */
+  .topbar .theme-toggle, .topbar form[action="/agent/run"] { display: none; }
+  .topbar .actions:empty { display: none; }
   main { padding: 18px 16px 56px;
     padding-left: max(16px, env(safe-area-inset-left));
     padding-right: max(16px, env(safe-area-inset-right));
@@ -482,8 +520,13 @@ textarea { resize: vertical; min-height: 200px; font-family: var(--mono); font-s
 .demo-badge { font: 600 10.5px/1 var(--mono); letter-spacing: .14em; text-align: center;
   background: var(--accent-weak); color: var(--accent-3); border: 1px solid var(--accent-line);
   padding: 6px 0; border-radius: 7px; }
-.signout { display: block; text-align: center; font-size: 12.5px; color: var(--nav-dim); padding: 2px 0; }
-.signout:hover { color: var(--text); text-decoration: none; }
+.signout { display: flex; align-items: center; justify-content: center; gap: 8px;
+  padding: 9px 12px; border: 1px solid var(--line); border-radius: 9px; background: var(--surface);
+  color: var(--text-dim); font-weight: 600; font-size: 13px;
+  transition: color .16s ease, border-color .16s ease, background .16s ease; }
+.signout svg { width: 16px; height: 16px; flex: none; }
+.signout:hover { color: var(--lo); text-decoration: none; background: var(--lo-bg);
+  border-color: color-mix(in oklab, var(--lo) 40%, var(--line)); }
 
 .login-body { display: flex; align-items: center; justify-content: center;
   min-height: 100vh; min-height: 100dvh; padding: max(16px, env(safe-area-inset-top)) 16px max(16px, env(safe-area-inset-bottom));

@@ -52,7 +52,7 @@
         <td class="cell-title">{{ j.title }}</td>
         <td data-label="Company">{{ j.company }}</td>
         <td class="files" data-label="Documents">
-          {% for d in j.doc_files %}<a class="file" href="/download?path={{ d.path | urlencode }}">↓ {{ d.name }}</a>{% endfor %}
+          {% for d in j.doc_files %}<a class="file" href="/download?path={{ d.path | urlencode }}" title="{{ d.name }}"><span class="file-ic">↓</span><span class="fname">{{ d.name }}</span></a>{% endfor %}
           {% if not j.doc_files %}<span class="cellmuted">—</span>{% endif %}
         </td>
         <td class="rowact">

@@ -74,7 +74,7 @@
   // The <head> inline script already applied the saved theme before paint; here we
   // just wire the toggle button and persist the choice.
   document.addEventListener("click", function (e) {
-    if (!e.target.closest("#theme-toggle")) return;
+    if (!e.target.closest(".theme-toggle")) return;
     var light = document.documentElement.getAttribute("data-theme") === "light";
     if (light) document.documentElement.removeAttribute("data-theme");
     else document.documentElement.setAttribute("data-theme", "light");
@@ -82,6 +82,39 @@
     // let theme-aware widgets (e.g. the Insights charts) restyle without a reload
     window.dispatchEvent(new CustomEvent("jp:themechange", { detail: { light: !light } }));
   });
+
+  // ---- mobile nav drawer ----------------------------------------------------
+  // The sidebar is a left-anchored off-canvas drawer on phones; the hamburger in
+  // the app bar opens it. Scrim tap / Esc / picking a destination all close it.
+  (function () {
+    var app = document.querySelector(".app");
+    var burger = document.getElementById("nav-toggle");
+    if (!app || !burger) return;
+    var scrim = document.getElementById("nav-scrim");
+    var closeBtn = document.getElementById("nav-close");
+
+    function isOpen() { return app.classList.contains("nav-open"); }
+    function open() {
+      app.classList.add("nav-open");
+      burger.setAttribute("aria-expanded", "true");
+      document.body.style.overflow = "hidden";   // lock the page behind the drawer
+    }
+    function close() {
+      app.classList.remove("nav-open");
+      burger.setAttribute("aria-expanded", "false");
+      document.body.style.overflow = "";
+    }
+    burger.addEventListener("click", function () { isOpen() ? close() : open(); });
+    if (scrim) scrim.addEventListener("click", close);
+    if (closeBtn) closeBtn.addEventListener("click", close);
+    document.addEventListener("keydown", function (e) { if (e.key === "Escape" && isOpen()) close(); });
+    var nav = app.querySelector(".sidebar nav");
+    if (nav) nav.addEventListener("click", function (e) { if (e.target.closest("a")) close(); });
+    // if the viewport grows back to desktop, drop any open state + scroll lock
+    window.addEventListener("resize", function () {
+      if (window.innerWidth > 820 && isOpen()) close();
+    });
+  })();
 
   // ---- confirm dialog -------------------------------------------------------
   function confirmDialog(message, opts) {
