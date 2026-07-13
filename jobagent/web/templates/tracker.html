@@ -34,12 +34,12 @@
     {% if f.company or f.stage %}<a class="btn btn-ghost" href="/tracker">Clear</a>{% endif %}
   </form>
   <details class="addbox">
-    <summary class="btn">+ Add</summary>
+    <summary class="btn btn-lg">+ Add</summary>
     <form method="post" action="/tracker/add" class="addform">
       <input name="company" placeholder="Company" required>
       <input name="role" placeholder="Role">
-      <input name="stage" placeholder="Stage">
-      <input name="applied_date" placeholder="Applied (YYYY-MM-DD)">
+      {{ ui.stage_select() }}
+      <input name="applied_date" type="date" aria-label="Applied date">
       <input name="location" placeholder="Location">
       <input name="notes" placeholder="Notes">
       <button class="btn btn-primary">Add application</button>

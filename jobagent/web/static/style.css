@@ -46,7 +46,7 @@
   --c-applied:oklch(0.800 0.110 235);   --c-applied-bg:oklch(0.300 0.055 235);
   --c-interview:oklch(0.820 0.120 75);  --c-interview-bg:oklch(0.300 0.050 75);
   --c-offer:oklch(0.820 0.150 165);     --c-offer-bg:oklch(0.300 0.055 165);
-  --c-rejected:oklch(0.740 0.010 200);  --c-rejected-bg:oklch(0.285 0.008 200);
+  --c-rejected:oklch(0.720 0.155 25);   --c-rejected-bg:oklch(0.300 0.065 25);
   --c-ghosted:oklch(0.790 0.070 70);    --c-ghosted-bg:oklch(0.300 0.035 70);
   --c-default:oklch(0.740 0.010 200);   --c-default-bg:oklch(0.285 0.008 200);
 
@@ -102,7 +102,7 @@
   --c-applied:oklch(0.500 0.150 260);   --c-applied-bg:oklch(0.940 0.045 260);
   --c-interview:oklch(0.560 0.120 70);  --c-interview-bg:oklch(0.945 0.060 75);
   --c-offer:oklch(0.500 0.140 165);     --c-offer-bg:oklch(0.935 0.055 165);
-  --c-rejected:oklch(0.480 0.012 215);  --c-rejected-bg:oklch(0.930 0.006 215);
+  --c-rejected:oklch(0.540 0.175 25);   --c-rejected-bg:oklch(0.945 0.055 25);
   --c-ghosted:oklch(0.560 0.080 70);    --c-ghosted-bg:oklch(0.945 0.050 70);
   --c-default:oklch(0.480 0.012 215);   --c-default-bg:oklch(0.930 0.006 215);
 
@@ -351,7 +351,7 @@ textarea { resize: vertical; min-height: 200px; font-family: var(--mono); font-s
 .addbox > summary::-webkit-details-marker { display: none; }
 .addform { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; background: var(--surface);
   border: 1px solid var(--line-2); border-radius: var(--radius); padding: 12px; box-shadow: var(--shadow); }
-.addform input { width: 150px; }
+.addform input, .addform select { width: 150px; }
 
 /* ---- charts (Insights) ---- */
 .ins-grid { display: grid; grid-template-columns: 2fr 1fr; gap: 16px; align-items: stretch; }
@@ -438,7 +438,7 @@ textarea { resize: vertical; min-height: 200px; font-family: var(--mono); font-s
   .toolbar { flex-direction: column; align-items: stretch; }
   .filters { align-items: stretch; }
   .filters input[type=text], .filters input:not([type]), .filters select,
-  .filters .inl, .addform input { width: 100%; }
+  .filters .inl, .addform input, .addform select { width: 100%; }
   .filters .inl { justify-content: space-between; }
   .addform { flex-direction: column; }
   .importform { flex-wrap: wrap; }

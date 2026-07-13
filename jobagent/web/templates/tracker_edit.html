@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% import "_macros.html" as ui %}
 {% block title %}Edit application{% endblock %}
 {% block heading %}Edit application{% endblock %}
 {% block content %}
@@ -10,8 +11,8 @@
         <div class="field"><label>Role</label><input name="role" value="{{ a.role or '' }}"></div>
       </div>
       <div class="row2">
-        <div class="field"><label>Stage</label><input name="stage" value="{{ a.stage or '' }}"></div>
-        <div class="field"><label>Applied date</label><input name="applied_date" value="{{ a.applied_date or '' }}"></div>
+        <div class="field"><label>Stage</label>{{ ui.stage_select(a.stage or '') }}</div>
+        <div class="field"><label>Applied date</label><input name="applied_date" type="date" value="{{ a.applied_date or '' }}"></div>
       </div>
       <div class="field"><label>Location</label><input name="location" value="{{ a.location or '' }}"></div>
       <div class="field"><label>Notes</label><textarea name="notes" style="min-height:90px">{{ a.notes or '' }}</textarea></div>

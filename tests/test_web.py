@@ -75,6 +75,23 @@ def test_download_path_traversal_blocked(client):
 def test_tracker_page_renders(client):
     r = client.get("/tracker", headers=_auth())
     assert r.status_code == 200 and "Application tracker" in r.text
+    # Add form: stage is a dropdown and the applied date is a calendar field.
+    assert '<select name="stage">' in r.text
+    assert '<option value="Rejected"' in r.text
+    assert 'name="applied_date" type="date"' in r.text
+
+
+def test_tracker_edit_page_renders(client):
+    import jobagent.web.app as webapp
+    s = webapp._store()
+    s.add_application({"role": "SWE", "company": "Acme", "applied_date": "2026-07-01",
+                       "stage": "Interviewing"})
+    aid = s.list_applications()[0]["id"]
+    s.close()
+    r = client.get(f"/tracker/{aid}/edit", headers=_auth())
+    # Edit form shares the stage dropdown; the current stage is preselected.
+    assert r.status_code == 200 and '<select name="stage">' in r.text
+    assert '<option value="Interviewing" selected>' in r.text
 
 
 def test_manual_tracker_add_defaults_to_today_and_counts(client):

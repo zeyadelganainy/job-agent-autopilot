@@ -12,6 +12,15 @@
 {% endif %}
 {% endmacro %}
 
+{% macro stage_select(selected='') %}
+{% set stages = ['Applied', 'Interviewing', 'Offer', 'Rejected', 'Ghosted'] %}
+<select name="stage">
+  <option value="">Stage…</option>
+  {% for st in stages %}<option value="{{ st }}" {{ 'selected' if selected == st }}>{{ st }}</option>{% endfor %}
+  {% if selected and selected not in stages %}<option value="{{ selected }}" selected>{{ selected }}</option>{% endif %}
+</select>
+{% endmacro %}
+
 {% macro sorth(label, key, f) %}
 {% set d = 'asc' if (f.sort == key and f.dir == 'desc') else 'desc' %}
 {% set arrow = (' ▾' if f.dir == 'desc' else ' ▴') if f.sort == key else '' %}
