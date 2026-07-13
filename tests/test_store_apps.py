@@ -1,5 +1,31 @@
+from datetime import date
+
 from jobagent.models import Job
 from jobagent.store import Store
+
+
+def test_today_stats_counts_manual_tracker_adds(tmp_path):
+    """A job added straight to the tracker with today's date shows in "applied today";
+    an Apply-button row (source 'jobpilot') is not double-counted; older rows don't count."""
+    s = Store(str(tmp_path / "t.db"))
+    today = date.today().isoformat()
+    base = s.today_stats(local_date=today)["applied"]
+
+    # Manual tracker add dated today → counts.
+    s.add_application({"role": "SWE", "company": "Acme", "applied_date": today, "stage": "Applied"})
+    assert s.today_stats(local_date=today)["applied"] == base + 1
+
+    # Apply-button row is already counted via jobs.applied_at, so its 'jobpilot'
+    # tracker row must NOT add a second tally.
+    s.add_application({"role": "T", "company": "C", "applied_date": today,
+                       "stage": "Applied", "source": "jobpilot", "url": "u"})
+    assert s.today_stats(local_date=today)["applied"] == base + 1
+
+    # A row dated in the past does not count toward today.
+    s.add_application({"role": "Old", "company": "Old", "applied_date": "2020-01-01",
+                       "stage": "Applied"})
+    assert s.today_stats(local_date=today)["applied"] == base + 1
+    s.close()
 
 
 def test_apply_flag_retry_and_runs(tmp_path):

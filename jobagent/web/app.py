@@ -45,6 +45,20 @@ UTC_MIN = datetime.min.replace(tzinfo=timezone.utc)
 COOKIE = "ja_session"
 SESSION_TTL = 7 * 24 * 3600
 
+# Curated IANA zones for the Settings dropdown (common North-American first). The user's
+# currently-saved zone is prepended at render time if it isn't already here, so a value
+# set by hand in config.yaml is never dropped.
+COMMON_TIMEZONES = [
+    "UTC",
+    "America/Vancouver", "America/Edmonton", "America/Regina", "America/Winnipeg",
+    "America/Toronto", "America/Halifax", "America/St_Johns",
+    "America/Los_Angeles", "America/Denver", "America/Phoenix", "America/Chicago",
+    "America/New_York", "America/Anchorage", "Pacific/Honolulu", "America/Sao_Paulo",
+    "Europe/London", "Europe/Paris", "Europe/Berlin", "Europe/Madrid",
+    "Europe/Amsterdam", "Europe/Athens", "Africa/Cairo", "Asia/Dubai",
+    "Asia/Kolkata", "Asia/Singapore", "Asia/Shanghai", "Asia/Tokyo", "Australia/Sydney",
+]
+
 
 class LoginRequired(Exception):
     """Raised when a browser request has no valid session — redirected to /login."""
@@ -122,9 +136,10 @@ def _output_dir() -> Path:
     return (ROOT / load_config()["paths"]["output"])
 
 
-def _local_day_window(cfg) -> tuple[str, str]:
+def _local_day_window(cfg) -> tuple[str, str, str]:
     """The current local day as a [start, end) UTC window (matching SQLite's stored
-    'YYYY-MM-DD HH:MM:SS' UTC timestamps), using the configured schedule timezone."""
+    'YYYY-MM-DD HH:MM:SS' UTC timestamps), plus the local date as 'YYYY-MM-DD' (for the
+    tracker's date-only column), using the configured schedule timezone."""
     tzname = ((cfg.get("schedule") or {}).get("timezone")) or "UTC"
     try:
         tz = ZoneInfo(tzname)
@@ -133,7 +148,8 @@ def _local_day_window(cfg) -> tuple[str, str]:
     start_local = datetime.now(tz).replace(hour=0, minute=0, second=0, microsecond=0)
     fmt = "%Y-%m-%d %H:%M:%S"
     return (start_local.astimezone(timezone.utc).strftime(fmt),
-            (start_local + timedelta(days=1)).astimezone(timezone.utc).strftime(fmt))
+            (start_local + timedelta(days=1)).astimezone(timezone.utc).strftime(fmt),
+            start_local.strftime("%Y-%m-%d"))
 
 
 def _static_v() -> str:
@@ -390,8 +406,9 @@ def job_apply(job_id: str, sess=Depends(require_auth)):
             s.mark_applied(job_id)
             s.add_application({
                 "role": row["title"], "company": row["company"],
-                "applied_date": datetime.now().strftime("%Y-%m-%d"), "stage": "Applied",
-                "location": row["location"], "notes": "via JobPilot", "url": url})
+                "applied_date": _local_day_window(load_config())[2], "stage": "Applied",
+                "location": row["location"], "notes": "via JobPilot", "url": url,
+                "source": "jobpilot"})   # 'jobpilot' → not re-counted in today_stats
     finally:
         s.close()
     return RedirectResponse(url or "/", status_code=303)
@@ -585,6 +602,9 @@ def tracker_add(role: str = Form(""), company: str = Form(""), applied_date: str
                 stage: str = Form(""), location: str = Form(""), notes: str = Form(""),
                 sess=Depends(require_auth)):
     if company or role:
+        # Blank date → assume applied today (in the configured tz), so it counts on the
+        # dashboard's "applied today" and sorts correctly in the tracker.
+        applied_date = applied_date.strip() or _local_day_window(load_config())[2]
         s = _store(sess)
         try:
             s.add_application(_app_fields(role, company, applied_date, stage, location, notes))
@@ -631,8 +651,12 @@ def tracker_delete(app_id: int, sess=Depends(require_auth)):
 # ---- settings (edit config.yaml) ----
 @app.get("/settings", response_class=HTMLResponse)
 def settings_page(request: Request, saved: str = None, sess=Depends(require_auth)):
+    s = settings_io.read()
+    current_tz = (s.get("schedule_timezone") or "").strip()
+    tzs = ([current_tz] if current_tz and current_tz not in COMMON_TIMEZONES else []) \
+        + COMMON_TIMEZONES
     return render(request, "settings.html",
-                  {"s": settings_io.read(), "saved": saved,
+                  {"s": s, "saved": saved, "timezones": tzs,
                    "email_ok": notify.email_configured()})
 
 
@@ -663,7 +687,9 @@ def settings_save(
         "auto_ghost": bool(auto_ghost), "ghost_after_weeks": _int(ghost_after_weeks, 4),
         "claude": claude.strip(), "gemini": gemini.strip(),
         "schedule_enabled": bool(schedule_enabled), "schedule_time": schedule_time.strip() or "08:00",
-        "schedule_timezone": schedule_timezone.strip(),
+        # Never persist a blank zone — the scheduler would silently fall back to the VM's
+        # local time instead of the configured one. Default to UTC if somehow empty.
+        "schedule_timezone": schedule_timezone.strip() or "UTC",
     })
     _reschedule()   # apply any schedule change immediately
     return RedirectResponse("/settings?saved=1", status_code=303)

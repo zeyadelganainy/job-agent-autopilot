@@ -83,7 +83,7 @@ would look sparse, add another relevant quantified bullet or an additional relev
 project rather than leaving white space; if it would overflow, trim the least relevant.
 - 4-5 bullets for the most relevant experience entries (fewer for older/less relevant ones).
 - 3-4 projects most relevant to THIS job; 2-4 bullets each.
-- List "projects" from most recent to oldest (by their dates).
+- List experience, projects, and education each from most recent to oldest (by their dates).
 - One concise line per skill category; drop categories irrelevant to the role.
 - Keep the summary to 2-3 lines.
 
@@ -250,18 +250,23 @@ def _strip_fabricated_links(data: dict, master: str) -> None:
             pr["link"] = ""
 
 
-def _sort_projects_recent_first(data: dict) -> None:
-    """Order projects most-recent-first by the latest year in their dates string.
-    Deterministic backstop to the prompt; projects with no parseable year sort last."""
-    projs = data.get("projects")
-    if not isinstance(projs, list):
-        return
+def _sort_entries_recent_first(data: dict) -> None:
+    """Put every dated résumé section in reverse-chronological order (most recent first)
+    — the standard résumé convention. Deterministic backstop to the prompt; entries with
+    no parseable year sort last. A "Present"/"Current" end date always sorts newest.
 
-    def key(pr):
-        years = re.findall(r"(?:19|20)\d{2}", str(pr.get("dates") or ""))
+    Stable within a year, so the model's ordering of same-year entries is preserved."""
+    def key(entry):
+        dates = str(entry.get("dates") or "")
+        if re.search(r"present|current|now|ongoing", dates, re.I):
+            return 10**9                      # open-ended → most recent
+        years = re.findall(r"(?:19|20)\d{2}", dates)
         return max(int(y) for y in years) if years else -1
 
-    data["projects"] = sorted(projs, key=key, reverse=True)
+    for section in ("experience", "projects", "education"):
+        items = data.get(section)
+        if isinstance(items, list):
+            data[section] = sorted(items, key=key, reverse=True)
 
 
 def _render_resume_docx(data: dict, identity: dict, template: Path, out_path: Path):
@@ -461,7 +466,7 @@ def generate(job_row, profile: dict, samples: str, master: str, models: dict,
         return out_paths + [str(md)]
 
     _strip_fabricated_links(data, master)   # never let invented URLs onto the résumé
-    _sort_projects_recent_first(data)       # projects in date order (most recent first)
+    _sort_entries_recent_first(data)        # experience/projects/education, most recent first
     try:
         resume_path = folder / f"{base}_resume.docx"
         _render_resume_docx(data, identity, template, resume_path)

@@ -194,10 +194,17 @@ class Store:
         return self.conn.execute(
             "SELECT * FROM agent_runs ORDER BY id DESC LIMIT ?", (limit,)).fetchall()
 
-    def today_stats(self, day_start: str = None, day_end: str = None) -> dict:
+    def today_stats(self, day_start: str = None, day_end: str = None,
+                    local_date: str = None) -> dict:
         """Counts for "today". Timestamps are stored UTC; pass a [day_start, day_end)
         UTC window (as 'YYYY-MM-DD HH:MM:SS' strings) to bucket by the user's local day.
-        Without a window it falls back to the UTC calendar day."""
+        Without a window it falls back to the UTC calendar day.
+
+        `applied` counts jobs you applied to via the Apply button (jobs.applied_at) PLUS
+        applications you added straight to the tracker today (manual add / CSV import).
+        Apply-button rows also land in `applications` with source='jobpilot', so they're
+        excluded from that second count to avoid double-counting. `local_date` is the
+        user's local day as 'YYYY-MM-DD' for matching the tracker's date-only column."""
         if day_start and day_end:
             run_where = "started_at >= ? AND started_at < ?"
             app_where = "applied_at IS NOT NULL AND applied_at >= ? AND applied_at < ?"
@@ -211,6 +218,13 @@ class Store:
         ).fetchone()
         applied = self.conn.execute(
             f"SELECT COUNT(*) c FROM jobs WHERE {app_where}", app_p).fetchone()["c"]
+        # Tracker entries added directly today (not the Apply button, counted above).
+        day_expr = "date(?)" if local_date else "date('now')"
+        tracker_p = (local_date,) if local_date else ()
+        applied += self.conn.execute(
+            "SELECT COUNT(*) c FROM applications WHERE COALESCE(source,'') != 'jobpilot' "
+            f"AND applied_date IS NOT NULL AND date(applied_date) = {day_expr}", tracker_p
+        ).fetchone()["c"]
         attention = self.conn.execute(
             "SELECT COUNT(*) c FROM jobs WHERE status='needs_attention'").fetchone()["c"]
         return {"scanned": r["s"], "matched": r["m"], "generated": r["g"],
@@ -266,15 +280,19 @@ class Store:
         self.conn.commit()
 
     def add_application(self, fields: dict):
-        """Insert a manually-added application (dedupe_key keeps re-imports tidy)."""
+        """Insert a manually-added application (dedupe_key keeps re-imports tidy).
+
+        `source` distinguishes a tracker-add ('manual', the default) from a row created
+        by the Apply button ('jobpilot'); today_stats uses it to avoid double-counting."""
         key = (fields.get("url") or "").strip().lower() or \
             f"{(fields.get('company') or '').strip().lower()}|{(fields.get('role') or '').strip().lower()}"
         self.conn.execute(
             """INSERT OR IGNORE INTO applications
                    (dedupe_key, role, company, applied_date, stage, location, notes, source)
-               VALUES (:dedupe_key,:role,:company,:applied_date,:stage,:location,:notes,'manual')""",
+               VALUES (:dedupe_key,:role,:company,:applied_date,:stage,:location,:notes,:source)""",
             {"dedupe_key": key or None,
              "role": fields.get("role", ""), "company": fields.get("company", ""),
              "applied_date": fields.get("applied_date", ""), "stage": fields.get("stage", ""),
-             "location": fields.get("location", ""), "notes": fields.get("notes", "")})
+             "location": fields.get("location", ""), "notes": fields.get("notes", ""),
+             "source": fields.get("source", "manual")})
         self.conn.commit()

@@ -47,6 +47,7 @@
   --c-interview:oklch(0.820 0.120 75);  --c-interview-bg:oklch(0.300 0.050 75);
   --c-offer:oklch(0.820 0.150 165);     --c-offer-bg:oklch(0.300 0.055 165);
   --c-rejected:oklch(0.740 0.010 200);  --c-rejected-bg:oklch(0.285 0.008 200);
+  --c-ghosted:oklch(0.790 0.070 70);    --c-ghosted-bg:oklch(0.300 0.035 70);
   --c-default:oklch(0.740 0.010 200);   --c-default-bg:oklch(0.285 0.008 200);
 
   --sans: "Fira Sans", system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
@@ -102,6 +103,7 @@
   --c-interview:oklch(0.560 0.120 70);  --c-interview-bg:oklch(0.945 0.060 75);
   --c-offer:oklch(0.500 0.140 165);     --c-offer-bg:oklch(0.935 0.055 165);
   --c-rejected:oklch(0.480 0.012 215);  --c-rejected-bg:oklch(0.930 0.006 215);
+  --c-ghosted:oklch(0.560 0.080 70);    --c-ghosted-bg:oklch(0.945 0.050 70);
   --c-default:oklch(0.480 0.012 215);   --c-default-bg:oklch(0.930 0.006 215);
 
   --shadow: 0 1px 2px rgba(16,24,40,.05), 0 1px 3px rgba(16,24,40,.09);
@@ -276,10 +278,13 @@ td.num, th.num { white-space: nowrap; }
 /* ---- stage chips ---- */
 .chip { display: inline-block; font-size: 12px; font-weight: 600; padding: 3px 10px;
   border-radius: 999px; background: var(--c-default-bg); color: var(--c-default); }
-.chip-applied { background: var(--c-applied-bg); color: var(--c-applied); }
-.chip-interview, .chip-interviewing, .chip-phone-screen { background: var(--c-interview-bg); color: var(--c-interview); }
-.chip-offer { background: var(--c-offer-bg); color: var(--c-offer); }
+.chip-applied, .chip-submitted { background: var(--c-applied-bg); color: var(--c-applied); }
+.chip-interview, .chip-interviewing, .chip-phone-screen, .chip-screening, .chip-screen,
+.chip-assessment, .chip-oa, .chip-online-assessment, .chip-technical, .chip-coding-challenge,
+.chip-onsite, .chip-final { background: var(--c-interview-bg); color: var(--c-interview); }
+.chip-offer, .chip-accepted, .chip-hired { background: var(--c-offer-bg); color: var(--c-offer); }
 .chip-rejected, .chip-declined { background: var(--c-rejected-bg); color: var(--c-rejected); }
+.chip-ghosted, .chip-withdrawn, .chip-no-response { background: var(--c-ghosted-bg); color: var(--c-ghosted); }
 
 /* ---- forms ---- */
 .field { display: block; margin-bottom: 14px; }

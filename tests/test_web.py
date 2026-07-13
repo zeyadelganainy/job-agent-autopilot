@@ -77,9 +77,29 @@ def test_tracker_page_renders(client):
     assert r.status_code == 200 and "Application tracker" in r.text
 
 
+def test_manual_tracker_add_defaults_to_today_and_counts(client):
+    import jobagent.web.app as webapp
+    # "Today" per the app = the configured-timezone local day (here UTC, the fixture default).
+    today = webapp._local_day_window(webapp.load_config())[2]
+    r = client.post("/tracker/add", headers=_auth(),
+                    data={"company": "Acme", "role": "SWE"},   # no applied_date
+                    follow_redirects=False)
+    assert r.status_code == 303
+    s = webapp._store()
+    try:
+        row = next(a for a in s.list_applications() if a["company"] == "Acme")
+        assert row["applied_date"] == today          # blank date filled with today
+        assert s.today_stats(local_date=today)["applied"] >= 1   # shows in "applied today"
+    finally:
+        s.close()
+
+
 def test_settings_page_renders(client):
     r = client.get("/settings", headers=_auth())
     assert r.status_code == 200 and "Search settings" in r.text
+    # Timezone is a dropdown, with the configured zone present and preselected.
+    assert '<select name="schedule_timezone">' in r.text
+    assert 'America/Vancouver' in r.text
 
 
 def test_insights_page_renders(client):
@@ -104,7 +124,8 @@ def test_apply_records_and_opens_posting(client):
     assert r.status_code == 303 and r.headers["location"] == "http://posting"
     s = webapp._store()
     assert s.get(j.job_id)["status"] == "applied"
-    assert any(a["company"] == "C" for a in s.list_applications())   # logged to tracker
+    logged = [a for a in s.list_applications() if a["company"] == "C"]
+    assert logged and logged[0]["source"] == "jobpilot"   # tagged so it isn't double-counted
     s.close()
 
 

@@ -74,7 +74,10 @@
     </div>
     <div class="row3">
       <div class="field"><label>Daily run time (24h)</label><input name="schedule_time" value="{{ s.schedule_time }}"></div>
-      <div class="field"><label>Timezone</label><input name="schedule_timezone" value="{{ s.schedule_timezone }}"></div>
+      <div class="field"><label>Timezone</label>
+        <select name="schedule_timezone">
+          {% for tz in timezones %}<option value="{{ tz }}" {{ 'selected' if s.schedule_timezone == tz }}>{{ tz }}</option>{% endfor %}
+        </select></div>
       <div class="field"><label>&nbsp;</label>
         <label class="check"><input type="checkbox" name="schedule_enabled" {{ 'checked' if s.schedule_enabled }}> Enable daily schedule</label></div>
     </div>

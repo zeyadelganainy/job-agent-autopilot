@@ -29,5 +29,17 @@ def test_trigger_uses_configured_timezone():
         _shutdown(sc)
 
 
+def test_trigger_uses_configured_time():
+    """The fire time comes from config `schedule.time`, not a hardcoded 08:00."""
+    cfg = {"schedule": {"enabled": True, "time": "14:30", "timezone": "America/Toronto"}}
+    sc = start_scheduler(cfg)
+    try:
+        job = sc.get_job("daily_run")
+        assert job.trigger.timezone == ZoneInfo("America/Toronto")
+        assert job.next_run_time.hour == 14 and job.next_run_time.minute == 30
+    finally:
+        _shutdown(sc)
+
+
 def test_disabled_schedule_returns_none():
     assert start_scheduler({"schedule": {"enabled": False}}) is None
