@@ -2,8 +2,8 @@
 
 Both are BYOK from .env. Model names come from config so you can swap them without
 touching code. Claude is the Anthropic SDK; the fallback is any OpenAI-compatible REST
-endpoint (default: Cerebras) used when Claude errors or its key is unset. Point
-FALLBACK_BASE_URL at Groq / OpenRouter / etc. to switch providers without code changes.
+endpoint (default: OpenRouter) used when Claude errors or its key is unset. Point
+FALLBACK_BASE_URL at Groq / Cerebras / etc. to switch providers without code changes.
 """
 import json
 import random
@@ -24,9 +24,9 @@ class LLMError(RuntimeError):
 
 _anthropic_client = None
 
-# Free fallback provider — any OpenAI-compatible endpoint. Default: Cerebras (~1M free
-# tokens/day). Override the host via FALLBACK_BASE_URL to use Groq, OpenRouter, etc.
-_FALLBACK_BASE_URL = "https://api.cerebras.ai/v1"
+# Free fallback provider — any OpenAI-compatible endpoint. Default: OpenRouter (free
+# `:free` models, no card). Override the host via FALLBACK_BASE_URL to use Groq, Cerebras, etc.
+_FALLBACK_BASE_URL = "https://openrouter.ai/api/v1"
 
 # Backoff + request defaults; overridden by config.yaml `llm:` when present.
 _DEFAULTS = {

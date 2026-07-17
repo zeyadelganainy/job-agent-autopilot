@@ -132,12 +132,12 @@ def test_call_fallback_builds_request_and_parses(monkeypatch):
     monkeypatch.setenv("FALLBACK_API_KEY", "sk-test")
     monkeypatch.delenv("FALLBACK_BASE_URL", raising=False)
 
-    out = llm._call_fallback("sys", "usr", {"fallback": "gpt-oss-120b"})
+    out = llm._call_fallback("sys", "usr", {"fallback": "meta-llama/llama-3.3-70b-instruct:free"})
 
     assert out == "hi from fallback"
-    assert captured["url"] == "https://api.cerebras.ai/v1/chat/completions"
+    assert captured["url"] == "https://openrouter.ai/api/v1/chat/completions"
     assert captured["headers"]["Authorization"] == "Bearer sk-test"
-    assert captured["json"]["model"] == "gpt-oss-120b"
+    assert captured["json"]["model"] == "meta-llama/llama-3.3-70b-instruct:free"
     assert captured["json"]["messages"] == [
         {"role": "system", "content": "sys"},
         {"role": "user", "content": "usr"},

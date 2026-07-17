@@ -47,7 +47,7 @@ not your laptop is on. Your résumé/profile and API keys stay in your own deplo
   records the application + opens the posting.
 - **Triage / release valve** — failures (quota/API) and manual-portal jobs are flagged with a
   reason and a Retry / Apply / Dismiss action.
-- **Resilient LLM layer** — Claude primary, a free OpenAI-compatible fallback (default Cerebras, BYOK),
+- **Resilient LLM layer** — Claude primary, a free OpenAI-compatible fallback (default OpenRouter, BYOK),
   exponential-backoff retry, and clear provider-named error messages ("Fallback: rate limit or quota exhausted").
 - **Template-faithful generation** — fills your real résumé `.docx` (fonts, margins, two-column
   layout, clickable links) from a single source-of-truth file; never invents links; fills a full
@@ -83,7 +83,7 @@ flowchart TB
         GEN["generate.py<br/>tailored résumé + cover letter"]
     end
 
-    LLM["llm.py · chat()<br/>Claude primary · free fallback (Cerebras, BYOK)"]
+    LLM["llm.py · chat()<br/>Claude primary · free fallback (OpenRouter, BYOK)"]
     DB[("store.py — SQLite<br/>jobs · agent_runs · applications")]
     EMAIL["notify.py<br/>email digest (SMTP, BYOK)"]
     USER(["You — review &amp; APPLY manually"])
@@ -127,7 +127,7 @@ perform the final apply.
 - **Python 3.10+**
 - At least one **LLM API key**: [Claude](https://console.anthropic.com/settings/keys) (paid, reliable
   — recommended for the agent) and/or a free OpenAI-compatible fallback — default
-  [Cerebras](https://cloud.cerebras.ai) (~1M free tokens/day; also works with Groq, OpenRouter, etc.).
+  [OpenRouter](https://openrouter.ai/keys) (free `:free` models, no card; also works with Groq, Cerebras, etc.).
 - An **SMTP mailbox** for the digest (e.g. Gmail with an App Password).
 
 ### 2. Install
@@ -138,7 +138,7 @@ pip install -r requirements.txt
 ### 3. Secrets — copy `.env.example` to `.env` (gitignored) and fill in
 ```ini
 ANTHROPIC_API_KEY=        # leave blank to run on the free fallback only
-FALLBACK_API_KEY=your_cerebras_key   # free fallback (default provider: Cerebras)
+FALLBACK_API_KEY=your_openrouter_key   # free fallback (default provider: OpenRouter)
 # FALLBACK_BASE_URL=      # optional: override to use Groq / OpenRouter / etc.
 WEB_USERNAME=admin
 WEB_PASSWORD=choose-a-strong-password
@@ -242,8 +242,8 @@ password. The agent's daily run fires from the always-on service and emails you.
 - **ATS feeds are the safe primary source**; job boards (JobSpy) are ToS-grey and can get a cloud IP blocked.
 - **Public repo:** secrets and your profile are gitignored and delivered to the VM via `scp`, never committed.
 - **LLM reality:** a Claude key gives the most dependable daily operation (with a spend cap if you
-  like); the free fallback (default Cerebras, ~1M tokens/day) covers a full autonomous run when
-  Claude errors or its key is unset. Point `FALLBACK_BASE_URL` at any OpenAI-compatible provider.
+  like); the free fallback (default OpenRouter, ~50 requests/day on `:free` models) covers lighter
+  runs when Claude errors or its key is unset. Point `FALLBACK_BASE_URL` at any OpenAI-compatible provider.
 - **Where your data goes:** your résumé is in every prompt. Anthropic doesn't train on API
   inputs/outputs; for the free fallback, check that provider's current data-use policy before sending
   your profile.

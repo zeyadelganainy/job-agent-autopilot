@@ -45,7 +45,7 @@ application. A scheduled daily run does the whole cycle; "Run agent now" trigger
 - `jobagent/generate.py` — tailored resume (structured JSON → user's `profile/resume.docx`
   template) + cover letter in the user's voice (`profile/samples/`), from `profile/master.md`.
 - `jobagent/llm.py` — Claude primary, free fallback via any OpenAI-compatible REST endpoint
-  (default Cerebras; set `FALLBACK_API_KEY`/`FALLBACK_BASE_URL`); `LLMError` names which provider
+  (default OpenRouter; set `FALLBACK_API_KEY`/`FALLBACK_BASE_URL`); `LLMError` names which provider
   failed and why. `jobagent/scheduler.py` — APScheduler daily `agent_run` → email.
 - `jobagent/ingest/` — `ats.py`, `boards.py`, `runner.py` (gather + filter + blocklist + dedupe).
 - `deploy/` — Oracle Cloud Always Free: `install.sh`, `jobagent.service` (systemd), `Caddyfile`
