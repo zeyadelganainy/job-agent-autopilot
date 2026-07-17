@@ -127,11 +127,12 @@ def _call_fallback(system: str, user: str, models: dict) -> str:
             resp.raise_for_status()   # HTTPError carries .response (status+headers) for _retry
             return (resp.json()["choices"][0]["message"]["content"]) or ""
         except Exception as e:
-            # Advance to the next model when this one is gone (404) OR transiently failing
-            # (rate limit / overload / network) — free pools like OpenRouter's routinely 429
-            # a busy model while another is up. A hard error (bad key, 400) stops us instead;
-            # the outer _retry then backs off and re-runs the whole list if all were transient.
-            if not (_is_model_gone(e) or _is_retryable(e)):
+            # Advance to the next model when this one is gone (404), transiently failing
+            # (rate limit / overload / network), or its provider is out of free quota (402) —
+            # free pools like OpenRouter's routinely 429/402 one model while another is up. A
+            # hard error (bad key, 400) stops us instead; the outer _retry then backs off and
+            # re-runs the whole list if the failures were transient.
+            if not (_is_model_gone(e) or _is_retryable(e) or _is_quota_exhausted(e)):
                 raise
             print(f"[llm] fallback model '{model}' unavailable ({_describe(e)}); trying next…")
             last_exc = e
@@ -164,6 +165,17 @@ def _is_model_gone(e: Exception) -> bool:
         return True
     msg = str(e).lower()
     return "model" in msg and any(m in msg for m in _MODEL_GONE_MARKERS)
+
+
+def _is_quota_exhausted(e: Exception) -> bool:
+    """True when a provider rejects for lack of quota/credit (402 / 'insufficient quota').
+    On a multi-provider router like OpenRouter this is per-model — the provider serving THIS
+    :free model is tapped out — so try the next model; another provider may still have room."""
+    if _status_code(e) == 402:
+        return True
+    msg = str(e).lower()
+    return any(m in msg for m in
+               ("insufficient_quota", "insufficient funds", "balance is too low", "balance too low"))
 
 
 def _retry_after(e: Exception):

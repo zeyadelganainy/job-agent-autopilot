@@ -230,6 +230,25 @@ def test_fallback_falls_through_rate_limited_model_to_next(monkeypatch):
     assert "busy-model" in seen and seen[-1] == "free-model"
 
 
+def test_fallback_falls_through_quota_exhausted_model(monkeypatch):
+    import requests
+    seen = []
+
+    def fake_post(url, headers=None, json=None, timeout=None):
+        model = json["model"]
+        seen.append(model)
+        if model == "tapped-model":
+            return _fake_resp(status=402, message="insufficient_quota: balance too low")
+        return _fake_resp(content="ok from " + model)
+
+    monkeypatch.setattr(requests, "post", fake_post)
+    monkeypatch.setenv("FALLBACK_API_KEY", "sk")
+
+    out = llm._call_fallback("s", "u", {"fallback": "tapped-model, other-model"})
+    assert out == "ok from other-model"   # 402 on one free provider → try the next model
+    assert seen == ["tapped-model", "other-model"]
+
+
 def test_fallback_stops_on_hard_error(monkeypatch):
     import requests
     seen = []
