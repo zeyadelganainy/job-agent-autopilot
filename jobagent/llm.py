@@ -1,8 +1,9 @@
-"""One chat() interface over Claude (primary) and Gemini (fallback).
+"""One chat() interface over Claude (primary) and a free fallback provider.
 
 Both are BYOK from .env. Model names come from config so you can swap them without
-touching code. Claude is the Anthropic SDK; Gemini is the fallback when Claude
-errors (or its key is unset).
+touching code. Claude is the Anthropic SDK; the fallback is any OpenAI-compatible REST
+endpoint (default: Cerebras) used when Claude errors or its key is unset. Point
+FALLBACK_BASE_URL at Groq / OpenRouter / etc. to switch providers without code changes.
 """
 import json
 import random
@@ -22,7 +23,10 @@ class LLMError(RuntimeError):
 
 
 _anthropic_client = None
-_gemini_client = None
+
+# Free fallback provider — any OpenAI-compatible endpoint. Default: Cerebras (~1M free
+# tokens/day). Override the host via FALLBACK_BASE_URL to use Groq, OpenRouter, etc.
+_FALLBACK_BASE_URL = "https://api.cerebras.ai/v1"
 
 # Backoff + request defaults; overridden by config.yaml `llm:` when present.
 _DEFAULTS = {
@@ -39,6 +43,14 @@ _RETRYABLE_MARKERS = (
     "overloaded", "unavailable", "timeout", "timed out", "connection",
 )
 _RETRYABLE_STATUS = {429, 500, 502, 503, 504, 529}   # 529 = Anthropic overloaded
+
+# Substrings marking a "this model id is gone" error (renamed/deprecated/decommissioned),
+# so _call_fallback can try the next configured model instead of giving up. Kept narrow so
+# a transient "unavailable"/overload (retryable) is never mistaken for a dead model.
+_MODEL_GONE_MARKERS = (
+    "model not found", "model_not_found", "does not exist", "no such model",
+    "unknown model", "invalid model", "decommissioned", "deprecated",
+)
 
 
 def _settings() -> dict:
@@ -68,14 +80,6 @@ def _anthropic():
     return _anthropic_client
 
 
-def _gemini():
-    global _gemini_client
-    if _gemini_client is None:
-        from google import genai
-        _gemini_client = genai.Client(api_key=env("GEMINI_API_KEY", required=True))
-    return _gemini_client
-
-
 def _call_claude(system: str, user: str, models: dict) -> str:
     resp = _anthropic().messages.create(
         model=models["claude"],
@@ -86,12 +90,50 @@ def _call_claude(system: str, user: str, models: dict) -> str:
     return "".join(b.text for b in resp.content if b.type == "text")
 
 
-def _call_gemini(system: str, user: str, models: dict) -> str:
-    resp = _gemini().models.generate_content(
-        model=models["gemini"],
-        contents=f"{system}\n\n{user}",
-    )
-    return resp.text or ""
+def _fallback_models(models: dict) -> list:
+    """Fallback model ids to try in order. `models['fallback']` may be a single id, a
+    comma-separated string ('gpt-oss-120b, zai-glm-4.7'), or a YAML list — so a dead or
+    renamed model id falls through to the next without a code change."""
+    raw = models.get("fallback") or ""
+    ids = raw if isinstance(raw, (list, tuple)) else str(raw).split(",")
+    return [s for s in (str(m).strip() for m in ids) if s]
+
+
+def _call_fallback(system: str, user: str, models: dict) -> str:
+    import requests
+    base = (env("FALLBACK_BASE_URL") or _FALLBACK_BASE_URL).rstrip("/")
+    key = env("FALLBACK_API_KEY", required=True)
+    model_ids = _fallback_models(models)
+    if not model_ids:
+        raise RuntimeError("No fallback model configured (set models.fallback).")
+
+    last_exc = None
+    for model in model_ids:
+        try:
+            resp = requests.post(
+                f"{base}/chat/completions",
+                headers={"Authorization": f"Bearer {key}",
+                         "Content-Type": "application/json"},
+                json={
+                    "model": model,
+                    "max_tokens": int(_settings()["max_tokens"]),
+                    "messages": [
+                        {"role": "system", "content": system},
+                        {"role": "user", "content": user},
+                    ],
+                },
+                timeout=120,
+            )
+            resp.raise_for_status()   # HTTPError carries .response (status+headers) for _retry
+            return (resp.json()["choices"][0]["message"]["content"]) or ""
+        except Exception as e:
+            # A dead/renamed model id → try the next candidate. Anything else (rate limit,
+            # auth, network) belongs to _retry / chat, so re-raise it immediately.
+            if not _is_model_gone(e):
+                raise
+            print(f"[llm] fallback model '{model}' unavailable ({_describe(e)}); trying next…")
+            last_exc = e
+    raise last_exc   # every configured fallback model id was unavailable
 
 
 def _status_code(e: Exception):
@@ -113,9 +155,18 @@ def _is_retryable(e: Exception) -> bool:
     return any(m in msg for m in _RETRYABLE_MARKERS)
 
 
+def _is_model_gone(e: Exception) -> bool:
+    """True when the error means the requested model id is unavailable (404, or a
+    'no such model' message) — a signal to try the next fallback model, not to retry."""
+    if _status_code(e) == 404:
+        return True
+    msg = str(e).lower()
+    return "model" in msg and any(m in msg for m in _MODEL_GONE_MARKERS)
+
+
 def _retry_after(e: Exception):
     """Server-suggested delay (seconds) if the error carries one, else None."""
-    # Anthropic / OpenAI-style: Retry-After header on the response.
+    # Anthropic / OpenAI-style: Retry-After header on the response (Claude + fallback).
     resp = getattr(e, "response", None)
     headers = getattr(resp, "headers", None)
     if headers:
@@ -125,12 +176,7 @@ def _retry_after(e: Exception):
                 return float(ra)
         except (TypeError, ValueError):
             pass
-    # Gemini: a retry_delay attribute (seconds), when present.
-    ra = getattr(e, "retry_delay", None)
-    secs = getattr(ra, "seconds", None)
-    if isinstance(secs, (int, float)):
-        return float(secs)
-    return float(ra) if isinstance(ra, (int, float)) else None
+    return None
 
 
 def _retry(fn, label: str):
@@ -177,7 +223,7 @@ def _describe(e: Exception) -> str:
 
 
 def chat(system: str, user: str, models: dict) -> str:
-    """Return the model's text. Tries Claude first, then Gemini, each with backoff.
+    """Return the model's text. Tries Claude first, then the fallback, each with backoff.
     If both fail (or aren't configured), raises LLMError naming what went wrong."""
     attempts = []
     try:
@@ -185,17 +231,17 @@ def chat(system: str, user: str, models: dict) -> str:
     except Exception as e:
         reason = _describe(e)
         attempts.append((f"Claude ({models.get('claude', '?')})", reason))
-        print(f"[llm] Claude unavailable: {reason}; trying Gemini…")
+        print(f"[llm] Claude unavailable: {reason}; trying fallback…")
 
-    if env("GEMINI_API_KEY"):
+    if env("FALLBACK_API_KEY"):
         try:
-            return _retry(lambda: _call_gemini(system, user, models), "Gemini")
+            return _retry(lambda: _call_fallback(system, user, models), "fallback")
         except Exception as e:
             reason = _describe(e)
-            attempts.append((f"Gemini ({models.get('gemini', '?')})", reason))
-            print(f"[llm] Gemini unavailable: {reason}")
+            attempts.append((f"Fallback ({models.get('fallback', '?')})", reason))
+            print(f"[llm] Fallback unavailable: {reason}")
     else:
-        attempts.append(("Gemini", "not configured (no GEMINI_API_KEY)"))
+        attempts.append(("Fallback", "not configured (no FALLBACK_API_KEY)"))
 
     raise LLMError("No LLM could respond — "
                    + "; ".join(f"{p}: {r}" for p, r in attempts) + ".", attempts)

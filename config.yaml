@@ -70,7 +70,9 @@ tracker:
 # ---- Models (config-driven so you can swap freely) ----
 models:
   claude: claude-opus-4-8   # primary (Anthropic, paid BYOK); swap to claude-sonnet-4-6 / claude-haiku-4-5 to cut cost
-  gemini: gemini-2.5-flash  # fallback (free tier)
+  fallback: gpt-oss-120b, zai-glm-4.7   # free fallback model(s), tried in order if one is
+                            # unavailable (comma-separated). Default provider Cerebras (OpenAI-compatible);
+                            # set FALLBACK_API_KEY/FALLBACK_BASE_URL in .env. Swap provider by changing the base URL.
 
 # ---- LLM rate-limit handling (all optional; code has the same defaults) ----
 llm:

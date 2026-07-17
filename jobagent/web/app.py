@@ -668,7 +668,7 @@ def settings_save(
     threshold: str = Form(""), digest_size: str = Form(""), max_to_score: str = Form(""),
     agent_enabled: str = Form(None), min_score: str = Form(""), daily_cap: str = Form(""),
     auto_ghost: str = Form(None), ghost_after_weeks: str = Form(""),
-    claude: str = Form(""), gemini: str = Form(""), schedule_enabled: str = Form(None),
+    claude: str = Form(""), fallback: str = Form(""), schedule_enabled: str = Form(None),
     schedule_time: str = Form(""), schedule_timezone: str = Form(""),
     sess=Depends(require_auth),
 ):
@@ -685,7 +685,7 @@ def settings_save(
         "agent_enabled": bool(agent_enabled), "min_score": _int(min_score, 80),
         "daily_cap": _int(daily_cap, 5),
         "auto_ghost": bool(auto_ghost), "ghost_after_weeks": _int(ghost_after_weeks, 4),
-        "claude": claude.strip(), "gemini": gemini.strip(),
+        "claude": claude.strip(), "fallback": fallback.strip(),
         "schedule_enabled": bool(schedule_enabled), "schedule_time": schedule_time.strip() or "08:00",
         # Never persist a blank zone — the scheduler would silently fall back to the VM's
         # local time instead of the configured one. Default to UTC if somehow empty.

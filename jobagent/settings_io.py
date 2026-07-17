@@ -52,7 +52,7 @@ def read() -> dict:
         "auto_ghost": bool(tr.get("auto_ghost", True)),
         "ghost_after_weeks": tr.get("ghost_after_weeks", 4),
         "claude": m.get("claude"),
-        "gemini": m.get("gemini"),
+        "fallback": m.get("fallback"),
         "schedule_enabled": bool(sch.get("enabled")),
         "schedule_time": sch.get("time"),
         "schedule_timezone": sch.get("timezone"),
@@ -91,7 +91,7 @@ def write(form: dict):
 
     d.setdefault("models", {})
     d["models"]["claude"] = form["claude"]
-    d["models"]["gemini"] = form["gemini"]
+    d["models"]["fallback"] = form["fallback"]
 
     d.setdefault("schedule", {})
     d["schedule"]["enabled"] = form["schedule_enabled"]

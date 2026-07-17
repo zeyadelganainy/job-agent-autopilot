@@ -70,7 +70,7 @@
   <div class="panel"><div class="panel-h"><h2>Models &amp; schedule</h2></div><div class="panel-b">
     <div class="row2">
       <div class="field"><label>Claude model (primary)</label><input name="claude" value="{{ s.claude }}"></div>
-      <div class="field"><label>Gemini model (fallback)</label><input name="gemini" value="{{ s.gemini }}"></div>
+      <div class="field"><label>Fallback model(s) — comma-separated, tried in order</label><input name="fallback" value="{{ s.fallback }}"></div>
     </div>
     <div class="row3">
       <div class="field"><label>Daily run time (24h)</label><input name="schedule_time" value="{{ s.schedule_time }}"></div>

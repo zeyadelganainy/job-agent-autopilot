@@ -43,7 +43,7 @@ def test_agent_run_flags_on_llm_error(cfg, monkeypatch):
     _seed_sent(cfg, [("A", 90, "u-a"), ("B", 88, "u-b")])
 
     def boom(ids, c):
-        raise LLMError("Gemini: rate limit or quota exhausted")
+        raise LLMError("Fallback: rate limit or quota exhausted")
     monkeypatch.setattr(pl, "pick_and_generate", boom)
 
     summary = pl.agent_run(cfg)

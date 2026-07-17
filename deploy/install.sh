@@ -36,7 +36,7 @@ cat <<'NEXT'
 Installed. Finish setup:
   1) From your laptop, push secrets + profile (kept out of the public repo):
         ./deploy/sync-secrets.sh ubuntu@<vm-ip>
-     Then on the VM, ensure .env has WEB_PASSWORD, ANTHROPIC/GEMINI keys, SMTP_*, APP_URL.
+     Then on the VM, ensure .env has WEB_PASSWORD, ANTHROPIC/FALLBACK keys, SMTP_*, APP_URL.
   2) Point a free DuckDNS subdomain at this VM's public IP, edit deploy/Caddyfile, then:
         sudo cp deploy/Caddyfile /etc/caddy/Caddyfile && sudo systemctl reload caddy
   3) Install + start the service:

@@ -114,7 +114,7 @@ def test_generate_writes_resume_and_cover_docx(tmp_path, monkeypatch):
 
     job = {"job_id": "abc", "title": "Backend Engineer", "company": "D2L", "description": "d"}
     paths = g.generate(job, {"identity": {"name": "Z", "email": "e"}}, "", "master",
-                       {"claude": "c", "gemini": "x"},
+                       {"claude": "c", "fallback": "x"},
                        {"output": str(tmp_path), "template": "nonexistent.docx"})
     names = sorted(Path(p).name for p in paths)
     prefix = date.today().strftime("%Y%m%d") + "_backend_engineer_d2l_"
@@ -131,7 +131,7 @@ def test_generate_falls_back_when_resume_json_unparseable(tmp_path, monkeypatch)
     monkeypatch.setattr(g, "chat", lambda s, u, m: next(seq))
     job = {"job_id": "z", "title": "T", "company": "C", "description": "d"}
     paths = g.generate(job, {"identity": {"name": "Z"}}, "", "m",
-                       {"claude": "c", "gemini": "x"},
+                       {"claude": "c", "fallback": "x"},
                        {"output": str(tmp_path), "template": "nonexistent.docx"})
     names = {Path(p).name for p in paths}
     assert any(n.endswith("_coverLetter.docx") for n in names)   # cover -> docx

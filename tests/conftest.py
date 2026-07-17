@@ -1,4 +1,4 @@
-"""Shared fixtures. Tests are hermetic: no network, LLM, or Telegram calls."""
+"""Shared fixtures. Tests are hermetic: no network, LLM, or email calls."""
 import pytest
 
 
@@ -14,7 +14,7 @@ def cfg(tmp_path):
             "template": "profile/resume.docx",
             "samples": "profile/samples",
         },
-        "models": {"claude": "claude-x", "gemini": "gemini-x"},
+        "models": {"claude": "claude-x", "fallback": "fallback-x"},
         "scoring": {"threshold": 60, "digest_size": 10, "max_to_score": 25},
         "llm": {"max_retries": 3, "base_delay_seconds": 0, "max_delay_seconds": 0,
                 "max_tokens": 256, "gen_delay_seconds": 0},

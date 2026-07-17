@@ -3,7 +3,7 @@ from jobagent import settings_io
 
 def test_read_has_expected_keys():
     s = settings_io.read()
-    for k in ("keywords", "locations", "threshold", "claude", "gemini",
+    for k in ("keywords", "locations", "threshold", "claude", "fallback",
               "schedule_time", "greenhouse"):
         assert k in s
 
@@ -22,7 +22,7 @@ def test_write_roundtrip_and_preserves_comments(tmp_path, monkeypatch):
         "boards_enabled": False, "threshold": 50, "digest_size": 10,
         "max_to_score": 25, "agent_enabled": True, "min_score": 85, "daily_cap": 4,
         "auto_ghost": True, "ghost_after_weeks": 4,
-        "claude": "claude-x", "gemini": "gemini-x",
+        "claude": "claude-x", "fallback": "fallback-x",
         "schedule_enabled": True, "schedule_time": "09:00",
         "schedule_timezone": "America/Vancouver",
     })
