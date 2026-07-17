@@ -211,20 +211,39 @@ def test_fallback_falls_through_dead_model_to_next(monkeypatch):
     assert seen == ["dead-model", "good-model"]   # tried in order, stopped at first success
 
 
-def test_fallback_does_not_fall_through_on_rate_limit(monkeypatch):
+def test_fallback_falls_through_rate_limited_model_to_next(monkeypatch):
+    import requests
+    seen = []
+
+    def fake_post(url, headers=None, json=None, timeout=None):
+        model = json["model"]
+        seen.append(model)
+        if model == "busy-model":
+            return _fake_resp(status=429, message="temporarily rate-limited upstream")
+        return _fake_resp(content="ok from " + model)
+
+    monkeypatch.setattr(requests, "post", fake_post)
+    monkeypatch.setenv("FALLBACK_API_KEY", "sk")
+
+    out = llm._call_fallback("s", "u", {"fallback": "busy-model, free-model"})
+    assert out == "ok from free-model"   # 429 on one free model → try the next
+    assert "busy-model" in seen and seen[-1] == "free-model"
+
+
+def test_fallback_stops_on_hard_error(monkeypatch):
     import requests
     seen = []
 
     def fake_post(url, headers=None, json=None, timeout=None):
         seen.append(json["model"])
-        return _fake_resp(status=429, message="rate limit exceeded")
+        return _fake_resp(status=401, message="invalid api key")
 
     monkeypatch.setattr(requests, "post", fake_post)
     monkeypatch.setenv("FALLBACK_API_KEY", "sk")
 
     with pytest.raises(Exception):
         llm._call_fallback("s", "u", {"fallback": "m1, m2"})
-    assert seen == ["m1"]   # a rate limit is not a model problem — no fallthrough
+    assert seen == ["m1"]   # a bad key affects every model — don't burn the list on it
 
 
 def test_fallback_raises_when_all_models_gone(monkeypatch):

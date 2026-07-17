@@ -70,10 +70,11 @@ tracker:
 # ---- Models (config-driven so you can swap freely) ----
 models:
   claude: claude-opus-4-8   # primary (Anthropic, paid BYOK); swap to claude-sonnet-4-6 / claude-haiku-4-5 to cut cost
-  fallback: meta-llama/llama-3.3-70b-instruct:free, qwen/qwen3-next-80b-a3b-instruct:free   # free
-                            # fallback model(s), tried in order if one is unavailable (comma-separated).
-                            # Default provider OpenRouter (OpenAI-compatible); set FALLBACK_API_KEY in .env.
-                            # Swap provider by setting FALLBACK_BASE_URL (Groq/Cerebras/…) + matching model ids.
+  fallback: meta-llama/llama-3.3-70b-instruct:free, qwen/qwen3-next-80b-a3b-instruct:free, openai/gpt-oss-20b:free
+                            # free fallback models, tried in order until one responds (comma-separated) —
+                            # OpenRouter's popular :free pools often 429, so list a few. Default provider
+                            # OpenRouter (OpenAI-compatible); set FALLBACK_API_KEY in .env. Swap provider by
+                            # setting FALLBACK_BASE_URL (Groq/Cerebras/…) + matching model ids.
 
 # ---- LLM rate-limit handling (all optional; code has the same defaults) ----
 llm:

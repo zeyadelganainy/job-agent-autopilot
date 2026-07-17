@@ -127,13 +127,15 @@ def _call_fallback(system: str, user: str, models: dict) -> str:
             resp.raise_for_status()   # HTTPError carries .response (status+headers) for _retry
             return (resp.json()["choices"][0]["message"]["content"]) or ""
         except Exception as e:
-            # A dead/renamed model id → try the next candidate. Anything else (rate limit,
-            # auth, network) belongs to _retry / chat, so re-raise it immediately.
-            if not _is_model_gone(e):
+            # Advance to the next model when this one is gone (404) OR transiently failing
+            # (rate limit / overload / network) — free pools like OpenRouter's routinely 429
+            # a busy model while another is up. A hard error (bad key, 400) stops us instead;
+            # the outer _retry then backs off and re-runs the whole list if all were transient.
+            if not (_is_model_gone(e) or _is_retryable(e)):
                 raise
             print(f"[llm] fallback model '{model}' unavailable ({_describe(e)}); trying next…")
             last_exc = e
-    raise last_exc   # every configured fallback model id was unavailable
+    raise last_exc   # every configured fallback model was unavailable
 
 
 def _status_code(e: Exception):
